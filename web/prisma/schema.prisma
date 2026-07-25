@@ -1,0 +1,183 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ---------- Auth (NextAuth / Auth.js v5 Prisma adapter shape) ----------
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String?
+  name         String?
+  image        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  accounts  Account[]
+  sessions  Session[]
+  chats     Chat[]
+  artifacts Artifact[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ---------- Conversations ----------
+
+model Chat {
+  id        String    @id @default(cuid())
+  userId    String
+  title     String    @default("New chat")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  Message[]
+  themes    Theme[]
+  widgets   Widget[]
+  artifacts Artifact[]
+
+  @@index([userId, updatedAt])
+}
+
+model Message {
+  id          String   @id @default(cuid())
+  chatId      String
+  role        String // "user" | "assistant" | "system"
+  content     String
+  actionsJson String? // JSON-encoded resolved actions attached to an assistant turn
+  createdAt   DateTime @default(now())
+
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@index([chatId, createdAt])
+}
+
+// Append-only, mirrors ArtifactVersion but for page-wide theme state.
+// "current theme" for a chat = latest row by createdAt.
+model Theme {
+  id         String   @id @default(cuid())
+  chatId     String
+  vars       String? // JSON: { "--bg": "#...", "--fg": "#...", "--accent": "#..." }
+  background String? // JSON: { type: "solid"|"gradient", value: "..." }
+  animation  String? // JSON: { target, effect, intensity }
+  action     String // "SET_THEME" | "UPDATE_THEME" | "RESET_THEME"
+  createdAt  DateTime @default(now())
+
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@index([chatId, createdAt])
+}
+
+enum ArtifactCategory {
+  GAME
+  TOOL
+  UTILITY
+  DASHBOARD
+  EDITOR
+}
+
+enum ArtifactSourceType {
+  CONFIG_ONLY
+  GENERATED_CODE
+}
+
+// One row per distinct app/game a user has ever created — survives chat deletion,
+// mirrors today's games.json persisting independently of session.json.
+model Artifact {
+  id           String             @id @default(cuid())
+  userId       String
+  originChatId String?
+  slug         String
+  category     ArtifactCategory
+  title        String
+  description  String?
+  modes        String? // JSON array, e.g. ["bot","multiplayer"]
+  configSchema String // JSON: typed field defs
+  themeMap     String? // JSON: chat-theme-key -> artifact-theme-key
+  sourceType   ArtifactSourceType @default(CONFIG_ONLY)
+  isBuiltIn    Boolean            @default(false)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  originChat Chat?             @relation(fields: [originChatId], references: [id], onDelete: SetNull)
+  versions   ArtifactVersion[]
+
+  @@unique([userId, slug])
+  @@index([userId, category])
+}
+
+model ArtifactVersion {
+  id              String   @id @default(cuid())
+  artifactId      String
+  version         String // "v0", "v1", ...
+  parentVersionId String?
+  config          String // JSON: merged config
+  codeFilePath    String? // set only when artifact.sourceType == GENERATED_CODE
+  codeHash        String?
+  label           String
+  createdAt       DateTime @default(now())
+
+  artifact      Artifact          @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+  parentVersion ArtifactVersion?  @relation("VersionFork", fields: [parentVersionId], references: [id])
+  children      ArtifactVersion[] @relation("VersionFork")
+
+  @@unique([artifactId, version])
+  @@index([artifactId, createdAt])
+}
+
+model Widget {
+  id         String    @id @default(cuid())
+  chatId     String
+  widgetId   String // "calculator" | "timer" | "todo" | "chart" | "notes"
+  mountPoint String    @default("#widgets")
+  props      String? // JSON
+  order      Int       @default(0)
+  size       String    @default("md") // "sm" | "md" | "lg"
+  removedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@index([chatId, removedAt])
+}
