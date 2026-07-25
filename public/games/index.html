@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Loading game…</title>
+<link rel="stylesheet" href="shell.css" />
+</head>
+<body>
+<div id="game-shell">
+  <section id="landing">
+    <h1 id="game-title">Loading…</h1>
+    <p id="game-description"></p>
+    <div id="game-version-label"></div>
+    <div id="mode-buttons">
+      <button id="btn-bot" class="mode-btn">🤖 Play vs Bot</button>
+      <button id="btn-multiplayer" class="mode-btn">🧑‍🤝‍🧑 Multiplayer (same device)</button>
+    </div>
+  </section>
+
+  <section id="game-area" hidden>
+    <div id="game-topbar">
+      <button id="btn-back">← Menu</button>
+      <span id="game-mode-label"></span>
+    </div>
+    <div id="game-mount"></div>
+  </section>
+</div>
+<script type="module" src="shell.js"></script>
+</body>
+</html>

@@ -1,6 +1,7 @@
 import { applySetTheme, applyAnimateElement } from "./actions/theme.js";
 import { applyUpdateLayout, applyRemoveWidget } from "./actions/layout.js";
-import { applyCreateWidget, applyStartGame } from "./actions/widgets.js";
+import { applyCreateWidget } from "./actions/widgets.js";
+import { applyStartGame, applyUpdateGame } from "./actions/games.js";
 
 const handlers = {
   setTheme: applySetTheme,
@@ -8,7 +9,8 @@ const handlers = {
   updateLayout: applyUpdateLayout,
   removeWidget: applyRemoveWidget,
   createWidget: applyCreateWidget,
-  startGame: applyStartGame
+  startGame: applyStartGame,
+  updateGame: applyUpdateGame
 };
 
 export function executeActions(actions) {

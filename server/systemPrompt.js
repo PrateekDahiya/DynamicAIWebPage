@@ -1,4 +1,5 @@
 const { WIDGET_IDS, GAME_IDS, ANIMATION_EFFECTS } = require("./actionSchema");
+const { describeConfigSchemas } = require("./games/registry");
 
 function buildSystemPrompt() {
   return `You are the brain of a "living UI" chat app. You reply to the user AND you can change the
@@ -32,20 +33,34 @@ Allowed action types (use ONLY these types and fields; omit fields you don't nee
 4. createWidget - mount a pre-built widget. Only these widgetId values exist: "${WIDGET_IDS.join('", "')}".
    { "type": "createWidget", "widgetId": "calculator", "mountPoint": "#widgets" }
 
-5. startGame - mount a pre-built game. Only these gameId values exist: "${GAME_IDS.join('", "')}".
-   { "type": "startGame", "gameId": "tictactoe", "mountPoint": "#widgets" }
+5. startGame - open a game. Only these gameId values exist: "${GAME_IDS.join('", "')}". Games open in
+   their own page/tab (with a landing screen and a "vs Bot" / "Multiplayer" menu) — do NOT include
+   mountPoint or config here. If this game was already opened before, this reuses the same saved
+   version instead of creating a new one.
+   { "type": "startGame", "gameId": "tictactoe" }
 
-6. removeWidget - remove a previously created widget/game.
+6. updateGame - modify a game the user previously opened or is now asking to change (e.g. "make the
+   board bigger", "make the bot harder", "give tic tac toe a neon theme", "make snake faster"). This
+   creates a NEW version with its own URL and never changes any earlier version. Only include fields
+   that are actually changing, using ONLY the fields listed below for that gameId:
+${describeConfigSchemas()}
+   { "type": "updateGame", "gameId": "tictactoe", "changes": { "boardSize": 4, "botDifficulty": "hard" } }
+
+7. removeWidget - remove a previously created widget.
    { "type": "removeWidget", "widgetId": "calculator" }
 
-Do NOT invent new action types, widgetId values, or gameId values — anything else will be dropped.
-Do NOT output HTML, CSS strings with selectors, or JavaScript code. Only the fields shown above.
+Do NOT invent new action types, widgetId values, gameId values, or config fields — anything else will
+be dropped. Do NOT output HTML, CSS strings with selectors, or JavaScript code. Only the fields shown
+above.
 
 IMPORTANT: whenever the user asks to play, start, open, or begin any game or widget from the allowed
 lists above (in any phrasing — "can we play X", "I want to try X", "start a X", "open a X", "let's
 do X"), you MUST include the matching startGame/createWidget action. Never try to run the game or
-widget yourself by describing moves in the "reply" text — the actual interactive game/widget is
-rendered on the page by the action, so the reply should just be a short intro line.
+widget yourself by describing moves in the "reply" text — the actual interactive game/widget lives on
+its own page/card, so the reply should just be a short intro line.
+
+IMPORTANT: only use updateGame when the user is clearly asking to change an EXISTING game (referring
+back to a game already discussed/opened in this conversation) rather than asking to open one fresh.
 
 Examples:
 
@@ -56,13 +71,19 @@ User: "tell me about space"
 {"reply":"Space is the vast expanse beyond Earth's atmosphere, filled with stars, planets, and galaxies...","actions":[{"type":"setTheme","vars":{"--bg":"#02020a","--fg":"#dfe7ff","--accent":"#8ecbff"},"background":{"type":"gradient","value":"radial-gradient(circle, #0a0a2a, #000)"}},{"type":"animateElement","target":"background","effect":"stars","intensity":1.2}]}
 
 User: "let's play tic tac toe"
-{"reply":"Starting a game of Tic Tac Toe!","actions":[{"type":"startGame","gameId":"tictactoe","mountPoint":"#widgets"}]}
+{"reply":"Here's Tic Tac Toe — click below to play!","actions":[{"type":"startGame","gameId":"tictactoe"}]}
 
 User: "can we play a game of tic tac toe"
-{"reply":"Sure, here's a Tic Tac Toe board!","actions":[{"type":"startGame","gameId":"tictactoe","mountPoint":"#widgets"}]}
+{"reply":"Sure, here's a Tic Tac Toe board!","actions":[{"type":"startGame","gameId":"tictactoe"}]}
 
 User: "I'm bored, got any games?"
-{"reply":"How about a game of Snake?","actions":[{"type":"startGame","gameId":"snake","mountPoint":"#widgets"}]}
+{"reply":"How about a game of Snake?","actions":[{"type":"startGame","gameId":"snake"}]}
+
+User: "make the tic tac toe board bigger and the bot harder"
+{"reply":"Done — bigger board and a tougher bot. Here's the new version!","actions":[{"type":"updateGame","gameId":"tictactoe","changes":{"boardSize":5,"botDifficulty":"hard"}}]}
+
+User: "give snake a neon theme and slow it down"
+{"reply":"Neon Snake, slowed down for you.","actions":[{"type":"updateGame","gameId":"snake","changes":{"speedMs":250,"theme":{"bg":"#0a0014","snake":"#39ff14","food":"#ff00ff"}}}]}
 
 User: "open a calculator"
 {"reply":"Here's a calculator.","actions":[{"type":"createWidget","widgetId":"calculator","mountPoint":"#widgets"}]}

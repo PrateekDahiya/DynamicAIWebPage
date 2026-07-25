@@ -1,0 +1,177 @@
+:root {
+  --game-bg: #12141c;
+  --game-fg: #e6e6f0;
+  --game-accent: #6d8dff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--game-bg);
+  color: var(--game-fg);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#game-shell {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+#landing {
+  text-align: center;
+  max-width: 520px;
+}
+
+#landing h1 {
+  font-size: 2.2rem;
+  margin-bottom: 8px;
+}
+
+#landing p {
+  opacity: 0.8;
+  line-height: 1.5;
+}
+
+#game-version-label {
+  font-size: 0.8rem;
+  opacity: 0.55;
+  margin: 4px 0 24px;
+  font-family: ui-monospace, monospace;
+}
+
+#mode-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.mode-btn {
+  padding: 14px 20px;
+  font-size: 1.05rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--game-fg);
+  cursor: pointer;
+  transition: transform 0.1s ease, background 0.15s ease;
+}
+
+.mode-btn:hover {
+  background: var(--game-accent);
+  color: white;
+  transform: translateY(-1px);
+}
+
+#game-area {
+  width: 100%;
+  max-width: 720px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+#game-topbar {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+#btn-back {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: transparent;
+  color: var(--game-fg);
+  cursor: pointer;
+}
+
+#btn-back:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+#game-mode-label {
+  opacity: 0.7;
+  font-size: 0.9rem;
+}
+
+#game-mount {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Tic Tac Toe */
+.ttt-status {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.ttt-grid {
+  display: grid;
+  gap: 4px;
+}
+
+.ttt-cell {
+  width: 100%;
+  height: 100%;
+  font-size: 1.6rem;
+  font-weight: 700;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--game-accent, #6d8dff);
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.ttt-cell:disabled {
+  cursor: default;
+}
+
+.ttt-reset {
+  margin-top: 8px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: transparent;
+  color: var(--game-fg);
+  cursor: pointer;
+}
+
+.ttt-reset:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Snake */
+.snake-status {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.snake-hint {
+  font-size: 0.8rem;
+  opacity: 0.6;
+}
+
+.snake-canvas {
+  outline: none;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}

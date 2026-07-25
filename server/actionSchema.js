@@ -1,9 +1,11 @@
+const { getGameIds } = require("./games/registry");
+
 const CSS_VAR_NAME_RE = /^--[a-zA-Z0-9-]+$/;
 const COLOR_RE = /^(#[0-9a-fA-F]{3,8}|rgba?\([^)]*\)|hsla?\([^)]*\)|[a-zA-Z]+)$/;
 const LENGTH_RE = /^-?\d+(\.\d+)?(px|rem|em|%|vh|vw)$/;
 
 const WIDGET_IDS = ["calculator", "timer", "todo", "chart", "notes"];
-const GAME_IDS = ["tictactoe", "snake"];
+const GAME_IDS = getGameIds();
 const ANIMATION_EFFECTS = ["particles", "snow", "stars", "rain", "gradient-shift", "none"];
 const ANIMATION_TARGETS = ["background", "#chat", "#app"];
 const LAYOUT_TARGETS = ["#chat", "#app", "#widgets"];
@@ -65,11 +67,12 @@ function sanitizeAction(action) {
     }
     case "startGame": {
       if (!GAME_IDS.includes(action.gameId)) return null;
-      return {
-        type: "startGame",
-        gameId: action.gameId,
-        mountPoint: typeof action.mountPoint === "string" ? action.mountPoint : "#widgets"
-      };
+      return { type: "startGame", gameId: action.gameId };
+    }
+    case "updateGame": {
+      if (!GAME_IDS.includes(action.gameId)) return null;
+      const changes = action.changes && typeof action.changes === "object" ? action.changes : {};
+      return { type: "updateGame", gameId: action.gameId, changes };
     }
     case "removeWidget": {
       if (typeof action.mountPoint !== "string" && typeof action.widgetId !== "string") return null;
@@ -103,6 +106,7 @@ function sanitizeActions(actions) {
 
 module.exports = {
   sanitizeActions,
+  isSafeCssValue,
   WIDGET_IDS,
   GAME_IDS,
   ANIMATION_EFFECTS

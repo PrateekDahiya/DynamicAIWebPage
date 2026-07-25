@@ -4,6 +4,8 @@ const express = require("express");
 const { chatCompletion } = require("../ollama");
 const { buildSystemPrompt } = require("../systemPrompt");
 const { sanitizeActions } = require("../actionSchema");
+const { resolveStart, resolveUpdate } = require("../gameStore");
+const { getGameDef } = require("../games/registry");
 
 const router = express.Router();
 const systemPrompt = buildSystemPrompt();
@@ -45,6 +47,22 @@ function parseModelOutput(raw) {
   }
 }
 
+// Turns the model's abstract startGame/updateGame intents into a concrete, versioned
+// game URL — reusing the latest existing version, or forking a new one for updateGame.
+function resolveGameActions(actions) {
+  return actions.map((action) => {
+    if (action.type === "startGame") {
+      const resolved = resolveStart(action.gameId);
+      return { ...resolved, type: "startGame", title: getGameDef(action.gameId).title };
+    }
+    if (action.type === "updateGame") {
+      const resolved = resolveUpdate(action.gameId, action.changes);
+      return { ...resolved, type: "updateGame", title: getGameDef(action.gameId).title };
+    }
+    return action;
+  });
+}
+
 router.get("/state", (_req, res) => {
   res.json({ turns });
 });
@@ -57,7 +75,8 @@ router.post("/chat", async (req, res) => {
 
   try {
     const raw = await chatCompletion({ systemPrompt, history, userMessage });
-    const { reply, actions } = parseModelOutput(raw);
+    const { reply, actions: sanitized } = parseModelOutput(raw);
+    const actions = resolveGameActions(sanitized);
 
     history.push({ role: "user", content: userMessage });
     history.push({ role: "assistant", content: reply });
