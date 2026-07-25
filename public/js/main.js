@@ -1,9 +1,25 @@
 import { appendBubble } from "./chat.js";
 import { executeActions } from "./actionExecutor.js";
+import { renderGameCard } from "./actions/games.js";
 
 const form = document.getElementById("chat-form");
 const input = document.getElementById("chat-input");
 const resetBtn = document.getElementById("chat-reset");
+
+// Games are opened in their own tab and versioned server-side independently of the chat
+// session, so they're loaded from /api/games (not replayed from chat turns) and stay
+// visible in the sidebar across a chat reset, even if you closed their card before.
+async function loadPersistentGames() {
+  try {
+    const res = await fetch("/api/games");
+    const data = await res.json();
+    for (const game of data.games || []) {
+      renderGameCard(game);
+    }
+  } catch (err) {
+    console.error("Failed to load games:", err);
+  }
+}
 
 async function restoreSession() {
   try {
@@ -13,18 +29,24 @@ async function restoreSession() {
 
     if (!turns.length) {
       appendBubble("system", "Try: \"make the background red\", \"tell me about space\", \"let's play tic tac toe\", \"open a calculator\"");
-      return;
-    }
-
-    for (const turn of turns) {
-      appendBubble("user", turn.userMessage);
-      appendBubble("assistant", turn.reply);
-      executeActions(turn.actions);
+    } else {
+      for (const turn of turns) {
+        appendBubble("user", turn.userMessage);
+        appendBubble("assistant", turn.reply);
+        // startGame/updateGame are rendered exclusively via loadPersistentGames() below,
+        // so skip them here to avoid duplicate/stale cards.
+        const nonGameActions = (turn.actions || []).filter(
+          (a) => a.type !== "startGame" && a.type !== "updateGame"
+        );
+        executeActions(nonGameActions);
+      }
     }
   } catch (err) {
     console.error("Failed to restore session:", err);
     appendBubble("system", "Try: \"make the background red\", \"tell me about space\", \"let's play tic tac toe\", \"open a calculator\"");
   }
+
+  await loadPersistentGames();
 }
 
 form.addEventListener("submit", async (e) => {

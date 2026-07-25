@@ -1,10 +1,15 @@
 const express = require("express");
 const path = require("path");
 const { getGameDef, getGameIds } = require("../games/registry");
-const { getLatestVersion, getVersion } = require("../gameStore");
+const { getLatestVersion, getVersion, listGames } = require("../gameStore");
 
 const router = express.Router();
 const GAME_PAGE = path.join(__dirname, "..", "..", "public", "games", "index.html");
+
+// All games ever opened, at their latest version — independent of chat session/reset.
+router.get("/api/games", (_req, res) => {
+  res.json({ games: listGames() });
+});
 
 // No version given: send the user to the latest version (creating v0 the first time).
 router.get("/games/:gameId", (req, res) => {

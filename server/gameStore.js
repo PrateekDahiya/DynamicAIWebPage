@@ -59,6 +59,25 @@ function getVersion(gameId, version) {
   return ensureGame(gameId).versions.find((v) => v.version === version);
 }
 
+// Every game that has ever been opened, at its latest version — used to keep a persistent
+// "your games" panel in the chat sidebar that survives a chat reset (games.json is separate
+// from the chat session and is never cleared by /api/reset).
+function listGames() {
+  return Object.entries(store)
+    .filter(([, game]) => game.versions.length > 0)
+    .map(([gameId, game]) => {
+      const latest = game.versions[game.versions.length - 1];
+      const def = getGameDef(gameId);
+      return {
+        gameId,
+        title: def.title,
+        version: latest.version,
+        label: latest.label,
+        url: `/games/${gameId}/${latest.version}`
+      };
+    });
+}
+
 function mergeConfig(baseConfig, changes, schema) {
   const merged = JSON.parse(JSON.stringify(baseConfig));
   const changedKeys = [];
@@ -123,4 +142,4 @@ function resolveUpdate(gameId, changes) {
   return { gameId, version: entry.version, url: `/games/${gameId}/${entry.version}`, label: entry.label };
 }
 
-module.exports = { resolveStart, resolveUpdate, getLatestVersion, getVersion };
+module.exports = { resolveStart, resolveUpdate, getLatestVersion, getVersion, listGames };
