@@ -4,6 +4,8 @@ import { ThemeProvider } from "next-themes";
 import { SessionProvider } from "next-auth/react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
+import { ThemeEngineProvider } from "@/components/theme/theme-engine-provider";
+import { BackgroundEffectCanvas } from "@/components/theme/background-effect-canvas";
 import "highlight.js/styles/github-dark.css";
 import "./globals.css";
 
@@ -37,8 +39,13 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <SessionProvider>
-            <TooltipProvider>{children}</TooltipProvider>
-            <Toaster />
+            <ThemeEngineProvider>
+              <BackgroundEffectCanvas />
+              <div className="relative z-10 flex min-h-full flex-1 flex-col">
+                <TooltipProvider>{children}</TooltipProvider>
+              </div>
+              <Toaster />
+            </ThemeEngineProvider>
           </SessionProvider>
         </ThemeProvider>
       </body>

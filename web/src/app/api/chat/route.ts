@@ -1,7 +1,9 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { streamChat, type ChatMessage } from "@/lib/ollama";
-import { buildSystemPrompt } from "@/lib/system-prompt";
+import { buildSystemPrompt, ACTIONS_DELIMITER } from "@/lib/system-prompt";
+import { sanitizeActions } from "@/lib/action-schema";
+import { resolveThemeActions } from "@/lib/theme-resolver";
 
 export const runtime = "nodejs";
 
@@ -14,6 +16,18 @@ function sseEvent(event: string, data: unknown) {
 function autoTitle(message: string) {
   const trimmed = message.trim().replace(/\s+/g, " ");
   return trimmed.length > 60 ? trimmed.slice(0, 57) + "…" : trimmed;
+}
+
+function parseTrailingActions(raw: string): { intent: string; actions: unknown[] } {
+  try {
+    const parsed = JSON.parse(raw.trim());
+    return {
+      intent: typeof parsed.intent === "string" ? parsed.intent : "conversation",
+      actions: Array.isArray(parsed.actions) ? parsed.actions : [],
+    };
+  } catch {
+    return { intent: "conversation", actions: [] };
+  }
 }
 
 export async function POST(req: Request) {
@@ -43,8 +57,6 @@ export async function POST(req: Request) {
   let ollamaMessages: ChatMessage[];
 
   if (regenerate) {
-    // Drop the stale assistant reply (if the chat currently ends with one) and replay history
-    // as-is — the last user turn is already persisted, so we don't append another one.
     const last = await prisma.message.findFirst({ where: { chatId }, orderBy: { createdAt: "desc" } });
     if (last?.role === "assistant") {
       await prisma.message.delete({ where: { id: last.id } });
@@ -81,14 +93,34 @@ export async function POST(req: Request) {
   }
 
   const encoder = new TextEncoder();
-  let fullReply = "";
+  let buffer = "";
+  let delimiterIndex = -1;
+  let sentUpTo = 0;
 
   const stream = new ReadableStream({
     async start(controller) {
       try {
         for await (const chunk of streamChat(ollamaMessages, req.signal)) {
-          fullReply += chunk;
-          controller.enqueue(encoder.encode(sseEvent("token", { text: chunk })));
+          buffer += chunk;
+
+          if (delimiterIndex === -1) {
+            delimiterIndex = buffer.indexOf(ACTIONS_DELIMITER);
+
+            if (delimiterIndex === -1) {
+              // Hold back a small trailing window in case the delimiter is split across chunks.
+              const safeEnd = Math.max(sentUpTo, buffer.length - ACTIONS_DELIMITER.length + 1);
+              if (safeEnd > sentUpTo) {
+                controller.enqueue(
+                  encoder.encode(sseEvent("token", { text: buffer.slice(sentUpTo, safeEnd) }))
+                );
+                sentUpTo = safeEnd;
+              }
+            } else {
+              const toSend = buffer.slice(sentUpTo, delimiterIndex);
+              if (toSend) controller.enqueue(encoder.encode(sseEvent("token", { text: toSend })));
+              sentUpTo = delimiterIndex + ACTIONS_DELIMITER.length;
+            }
+          }
         }
       } catch (err) {
         if ((err as Error).name !== "AbortError") {
@@ -102,9 +134,36 @@ export async function POST(req: Request) {
         }
       }
 
-      if (fullReply.trim()) {
-        await prisma.message.create({ data: { chatId, role: "assistant", content: fullReply } });
+      if (delimiterIndex === -1 && sentUpTo < buffer.length) {
+        controller.enqueue(encoder.encode(sseEvent("token", { text: buffer.slice(sentUpTo) })));
+      }
+
+      const replyText = (delimiterIndex === -1 ? buffer : buffer.slice(0, delimiterIndex)).trim();
+      const actionsRaw = delimiterIndex === -1 ? "" : buffer.slice(delimiterIndex + ACTIONS_DELIMITER.length);
+      const { actions: rawActions } = parseTrailingActions(actionsRaw);
+      const sanitized = sanitizeActions(rawActions);
+
+      let resolvedActions: unknown[] = [];
+      if (replyText) {
+        try {
+          resolvedActions = await resolveThemeActions(chatId, sanitized);
+        } catch {
+          resolvedActions = [];
+        }
+
+        await prisma.message.create({
+          data: {
+            chatId,
+            role: "assistant",
+            content: replyText,
+            actionsJson: resolvedActions.length ? JSON.stringify(resolvedActions) : null,
+          },
+        });
         await prisma.chat.update({ where: { id: chatId }, data: { updatedAt: new Date() } });
+      }
+
+      if (resolvedActions.length) {
+        controller.enqueue(encoder.encode(sseEvent("actions", { actions: resolvedActions })));
       }
 
       controller.enqueue(encoder.encode(sseEvent("done", {})));

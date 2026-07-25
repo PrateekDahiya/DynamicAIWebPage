@@ -4,8 +4,17 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MessageBubble, type ChatRole } from "./message-bubble";
 import { Composer } from "./composer";
+import { useThemeStore, type ThemeBackground, type ThemeAnimation } from "@/stores/theme-store";
 
 type ChatMessage = { id: string; role: ChatRole; content: string };
+type ThemeState = {
+  vars: Record<string, string> | null;
+  background: ThemeBackground | null;
+  animation: ThemeAnimation | null;
+};
+type ResolvedAction =
+  | { type: "RESET_THEME" }
+  | { type: "SET_THEME" | "UPDATE_THEME"; vars?: Record<string, string>; background?: ThemeBackground; animation?: ThemeAnimation };
 
 function parseSSEChunk(raw: string): { event: string; data: unknown }[] {
   return raw
@@ -23,19 +32,42 @@ function parseSSEChunk(raw: string): { event: string; data: unknown }[] {
 export function ChatWindow({
   chatId,
   initialMessages,
+  initialTheme,
 }: {
   chatId: string;
   initialMessages: ChatMessage[];
+  initialTheme: ThemeState | null;
 }) {
   const router = useRouter();
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [isStreaming, setIsStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const setActiveChatId = useThemeStore((s) => s.setActiveChatId);
+  const setTheme = useThemeStore((s) => s.setTheme);
+  const resetTheme = useThemeStore((s) => s.reset);
+
+  // Each chat has its own living theme (Theme rows are chatId-scoped) — hydrate the shared
+  // theme store whenever the active chat changes, so switching conversations switches the look.
+  useEffect(() => {
+    setActiveChatId(chatId);
+    if (initialTheme) setTheme(initialTheme);
+    else resetTheme();
+  }, [chatId, initialTheme, setActiveChatId, setTheme, resetTheme]);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  function applyResolvedActions(actions: ResolvedAction[]) {
+    for (const action of actions) {
+      if (action.type === "RESET_THEME") {
+        resetTheme();
+      } else {
+        setTheme({ vars: action.vars, background: action.background, animation: action.animation });
+      }
+    }
+  }
 
   async function runStream(body: Record<string, unknown>) {
     setIsStreaming(true);
@@ -86,6 +118,9 @@ export function ChatWindow({
             setMessages((prev) =>
               prev.map((m) => (m.id === assistantId ? { ...m, content: message } : m))
             );
+          } else if (part.event === "actions") {
+            const actions = (part.data as { actions: ResolvedAction[] }).actions;
+            applyResolvedActions(actions);
           }
         }
       }

@@ -17,10 +17,10 @@ export default async function ChatPage({
   });
   if (!chat) notFound();
 
-  const messages = await prisma.message.findMany({
-    where: { chatId },
-    orderBy: { createdAt: "asc" },
-  });
+  const [messages, latestTheme] = await Promise.all([
+    prisma.message.findMany({ where: { chatId }, orderBy: { createdAt: "asc" } }),
+    prisma.theme.findFirst({ where: { chatId }, orderBy: { createdAt: "desc" } }),
+  ]);
 
   return (
     <ChatWindow
@@ -30,6 +30,15 @@ export default async function ChatPage({
         role: m.role as "user" | "assistant" | "system",
         content: m.content,
       }))}
+      initialTheme={
+        latestTheme
+          ? {
+              vars: latestTheme.vars ? JSON.parse(latestTheme.vars) : null,
+              background: latestTheme.background ? JSON.parse(latestTheme.background) : null,
+              animation: latestTheme.animation ? JSON.parse(latestTheme.animation) : null,
+            }
+          : null
+      }
     />
   );
 }

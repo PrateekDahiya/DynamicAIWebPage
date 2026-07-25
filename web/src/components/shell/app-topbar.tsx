@@ -40,6 +40,9 @@ export function AppTopbar({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem disabled>{userEmail}</DropdownMenuItem>
+            <DropdownMenuItem render={<Link href="/settings/appearance" />}>
+              Appearance
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/" })}>
               Sign out
             </DropdownMenuItem>
