@@ -4,6 +4,7 @@ import { streamChat, type ChatMessage } from "@/lib/ollama";
 import { buildSystemPrompt, ACTIONS_DELIMITER } from "@/lib/system-prompt";
 import { sanitizeActions } from "@/lib/action-schema";
 import { resolveActions } from "@/lib/action-resolver";
+import { listArtifactInventory } from "@/lib/artifacts/store";
 
 export const runtime = "nodejs";
 
@@ -78,6 +79,9 @@ export async function POST(req: Request) {
     return new Response(JSON.stringify({ error: "Chat not found" }), { status: 404 });
   }
 
+  const inventory = await listArtifactInventory(session.user.id);
+  const systemPrompt = buildSystemPrompt(inventory);
+
   let ollamaMessages: ChatMessage[];
 
   if (regenerate) {
@@ -92,7 +96,7 @@ export async function POST(req: Request) {
     });
     history.reverse();
     ollamaMessages = [
-      { role: "system", content: buildSystemPrompt() },
+      { role: "system", content: systemPrompt },
       ...history.map((m) => ({ role: m.role as ChatMessage["role"], content: m.content })),
     ];
   } else {
@@ -110,7 +114,7 @@ export async function POST(req: Request) {
     }
 
     ollamaMessages = [
-      { role: "system", content: buildSystemPrompt() },
+      { role: "system", content: systemPrompt },
       ...priorMessages.map((m) => ({ role: m.role as ChatMessage["role"], content: m.content })),
       { role: "user", content: userMessage },
     ];

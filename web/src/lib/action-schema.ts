@@ -26,7 +26,10 @@ export type Action =
   | { type: "UPDATE_APP"; slug: string; category: ArtifactCategoryValue; changes: Record<string, unknown> }
   | { type: "CREATE_WIDGET"; widgetId: WidgetId; props?: Record<string, unknown> }
   | { type: "UPDATE_WIDGET"; widgetId: WidgetId; props: Record<string, unknown> }
-  | { type: "REMOVE_WIDGET"; widgetId: WidgetId };
+  | { type: "REMOVE_WIDGET"; widgetId: WidgetId }
+  | { type: "SHOW_NOTIFICATION"; message: string; level?: "info" | "success" | "warning" | "error" };
+
+export const NOTIFICATION_LEVELS = ["info", "success", "warning", "error"] as const;
 
 export function isSafeCssValue(value: unknown): value is string {
   if (typeof value !== "string" || value.length === 0 || value.length > 200) return false;
@@ -117,6 +120,13 @@ function sanitizeAction(raw: unknown): Action | null {
     case "REMOVE_WIDGET": {
       if (!WIDGET_IDS.includes(action.widgetId as WidgetId)) return null;
       return { type: "REMOVE_WIDGET", widgetId: action.widgetId as WidgetId };
+    }
+    case "SHOW_NOTIFICATION": {
+      if (typeof action.message !== "string" || !action.message.trim()) return null;
+      const level = NOTIFICATION_LEVELS.includes(action.level as (typeof NOTIFICATION_LEVELS)[number])
+        ? (action.level as (typeof NOTIFICATION_LEVELS)[number])
+        : "info";
+      return { type: "SHOW_NOTIFICATION", message: action.message.trim().slice(0, 200), level };
     }
     default:
       return null;

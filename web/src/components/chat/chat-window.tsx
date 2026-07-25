@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { MessageBubble, type ChatRole } from "./message-bubble";
 import { Composer } from "./composer";
 import type { AppCard } from "./app-action-card";
@@ -14,14 +15,16 @@ type ThemeState = {
   background: ThemeBackground | null;
   animation: ThemeAnimation | null;
 };
+type SuggestedReuse = { slug: string; title: string; url: string };
 type ResolvedAction =
   | { type: "RESET_THEME" }
   | { type: "SET_THEME" | "UPDATE_THEME"; vars?: Record<string, string>; background?: ThemeBackground; animation?: ThemeAnimation }
-  | { type: "CREATE_APP" | "OPEN_APP" | "UPDATE_APP"; title: string; url: string; version: string; label?: string }
+  | { type: "CREATE_APP" | "OPEN_APP" | "UPDATE_APP"; title: string; url: string; version: string; label?: string; suggestedReuse?: SuggestedReuse }
   | { type: "APP_GENERATION_PENDING"; jobId: string; slug: string; title: string }
   | { type: "APP_ACTION_FAILED"; slug: string; message: string }
   | { type: "CREATE_WIDGET" | "UPDATE_WIDGET"; id: string; widgetId: string; title: string; props: Record<string, unknown>; order: number }
-  | { type: "REMOVE_WIDGET"; widgetId: string };
+  | { type: "REMOVE_WIDGET"; widgetId: string }
+  | { type: "SHOW_NOTIFICATION"; message: string; level?: "info" | "success" | "warning" | "error" };
 
 function parseSSEChunk(raw: string): { event: string; data: unknown }[] {
   return raw
@@ -43,7 +46,15 @@ function toAppCards(actions: ResolvedAction[], keyPrefix: string): AppCard[] {
   actions.forEach((action, i) => {
     const id = `${keyPrefix}-${i}`;
     if (action.type === "CREATE_APP" || action.type === "OPEN_APP" || action.type === "UPDATE_APP") {
-      cards.push({ kind: "link", id, title: action.title, url: action.url, version: action.version, label: action.label });
+      cards.push({
+        kind: "link",
+        id,
+        title: action.title,
+        url: action.url,
+        version: action.version,
+        label: action.label,
+        suggestedReuse: action.suggestedReuse,
+      });
     } else if (action.type === "APP_GENERATION_PENDING") {
       cards.push({ kind: "pending", id, jobId: action.jobId, title: action.title });
     } else if (action.type === "APP_ACTION_FAILED") {
@@ -112,6 +123,9 @@ export function ChatWindow({
         });
       } else if (action.type === "REMOVE_WIDGET") {
         removeWidgetFromStore(action.widgetId);
+      } else if (action.type === "SHOW_NOTIFICATION") {
+        const toastFn = action.level === "error" ? toast.error : action.level === "warning" ? toast.warning : action.level === "success" ? toast.success : toast.info;
+        toastFn(action.message);
       }
     }
 

@@ -6,6 +6,7 @@ import {
   type ArtifactDef,
   type ConfigFieldSpec,
 } from "./registry";
+import { findSimilarArtifact } from "./fuzzy-match";
 import type { ArtifactCategory } from "@/generated/prisma/client";
 
 const MAX_VERSIONS_PER_ARTIFACT = 20;
@@ -166,6 +167,24 @@ export async function resolveArtifactStart(
   currentTheme: Record<string, string> | undefined,
   titleHint: string | undefined
 ) {
+  const alreadyExists = await prisma.artifact.findUnique({ where: { userId_slug: { userId, slug } } });
+
+  let suggestedReuse: { slug: string; title: string; url: string } | undefined;
+  if (!alreadyExists) {
+    const others = await prisma.artifact.findMany({
+      where: { userId, category },
+      select: { slug: true, title: true },
+    });
+    const match = findSimilarArtifact(slug, titleHint ?? slug, others);
+    if (match) {
+      const matchArtifact = await prisma.artifact.findUnique({ where: { userId_slug: { userId, slug: match.slug } } });
+      if (matchArtifact) {
+        const matchLatest = await getLatestVersion(matchArtifact.id);
+        suggestedReuse = { slug: match.slug, title: match.title, url: `/apps/${match.slug}/${matchLatest.version}` };
+      }
+    }
+  }
+
   const artifact = await ensureArtifactExists(userId, chatId, slug, category, titleHint);
   const latest = await getLatestVersion(artifact.id, currentTheme);
   return {
@@ -174,6 +193,7 @@ export async function resolveArtifactStart(
     title: artifact.title,
     version: latest.version,
     url: `/apps/${slug}/${latest.version}`,
+    suggestedReuse,
   };
 }
 
@@ -222,6 +242,10 @@ export async function resolveArtifactUpdate(
     label: entry.label,
     url: `/apps/${slug}/${entry.version}`,
   };
+}
+
+export async function listArtifactInventory(userId: string) {
+  return prisma.artifact.findMany({ where: { userId }, select: { slug: true, title: true, category: true } });
 }
 
 export async function listArtifacts(userId: string) {

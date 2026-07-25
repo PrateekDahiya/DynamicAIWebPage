@@ -88,6 +88,12 @@ export async function resolveActions(userId: string, chatId: string, actions: Ac
     if (action.type === "REMOVE_WIDGET") {
       await removeWidget(chatId, action.widgetId);
       resolved.push({ type: "REMOVE_WIDGET", widgetId: action.widgetId, title: WIDGET_TITLES[action.widgetId] });
+      continue;
+    }
+
+    if (action.type === "SHOW_NOTIFICATION") {
+      // Ephemeral — no persistence needed, just forwarded to the client as-is.
+      resolved.push(action);
     }
   }
 

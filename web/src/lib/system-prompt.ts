@@ -4,8 +4,14 @@ import { WIDGET_IDS, WIDGET_TITLES } from "./widgets/registry";
 
 export const ACTIONS_DELIMITER = "<<<ACTIONS>>>";
 
-export function buildSystemPrompt() {
+type ArtifactInventoryItem = { slug: string; title: string; category: string };
+
+export function buildSystemPrompt(existingArtifacts: ArtifactInventoryItem[] = []) {
   const builtinIds = getBuiltinIds();
+  const inventoryBlock =
+    existingArtifacts.length > 0
+      ? `\nApps this user has already opened before — if a request matches one of these, reuse its\nEXACT slug rather than inventing a new one:\n${existingArtifacts.map((a) => `- "${a.slug}" (${a.title}, ${a.category})`).join("\n")}\n`
+      : "";
 
   return `You are the assistant inside "Dynamic AI Chat," a helpful AI chat app whose page itself can
 change live based on what you say — colors, background, ambient animation — and that can open
@@ -70,6 +76,11 @@ ${describeConfigSchemas()}
 
 8. REMOVE_WIDGET - remove a widget from the sidebar.
    { "type": "REMOVE_WIDGET", "widgetId": "calculator" }
+
+9. SHOW_NOTIFICATION - a brief, ephemeral toast for things that don't warrant a chat message on
+   their own (e.g. confirming a background action). Use sparingly.
+   { "type": "SHOW_NOTIFICATION", "message": "Saved!", "level": "info" | "success" | "warning" | "error" }
+${inventoryBlock}
 
 The "vars" keys ARE the app's real design tokens, so setting them restyles everything (buttons,
 cards, sidebar) consistently — not just the raw background. Only use these var names: "--background"

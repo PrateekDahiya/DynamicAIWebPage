@@ -6,7 +6,15 @@ import { Loader2, ExternalLink, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export type AppCard =
-  | { kind: "link"; id: string; title: string; url: string; version: string; label?: string }
+  | {
+      kind: "link";
+      id: string;
+      title: string;
+      url: string;
+      version: string;
+      label?: string;
+      suggestedReuse?: { slug: string; title: string; url: string };
+    }
   | { kind: "pending"; id: string; jobId: string; title: string }
   | { kind: "error"; id: string; title: string; message: string };
 
@@ -25,19 +33,30 @@ function ResolvedCardView({ card }: { card: ResolvedCard }) {
   }
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/40 px-3 py-2">
-      <div className="text-sm">
-        <p className="font-medium">{card.title}</p>
-        {card.label && (
-          <p className="font-mono text-xs text-muted-foreground">
-            {card.version} · {card.label}
-          </p>
-        )}
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/40 px-3 py-2">
+        <div className="text-sm">
+          <p className="font-medium">{card.title}</p>
+          {card.label && (
+            <p className="font-mono text-xs text-muted-foreground">
+              {card.version} · {card.label}
+            </p>
+          )}
+        </div>
+        <Button size="sm" render={<Link href={card.url} target="_blank" rel="noopener" />} className="gap-1.5">
+          Play
+          <ExternalLink className="size-3.5" />
+        </Button>
       </div>
-      <Button size="sm" render={<Link href={card.url} target="_blank" rel="noopener" />} className="gap-1.5">
-        Play
-        <ExternalLink className="size-3.5" />
-      </Button>
+      {card.suggestedReuse && (
+        <p className="px-1 text-xs text-muted-foreground">
+          Looks similar to{" "}
+          <Link href={card.suggestedReuse.url} target="_blank" rel="noopener" className="underline">
+            {card.suggestedReuse.title}
+          </Link>
+          , already in your apps.
+        </p>
+      )}
     </div>
   );
 }
