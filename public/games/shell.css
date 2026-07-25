@@ -231,6 +231,57 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
+/* Chess */
+.chess-board {
+  display: grid;
+  grid-template-columns: repeat(8, 58px);
+  grid-template-rows: repeat(8, 58px);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.chess-square {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.1rem;
+  cursor: pointer;
+  position: relative;
+  user-select: none;
+}
+
+.chess-square.light {
+  background: var(--game-light, #eeeed2);
+}
+
+.chess-square.dark {
+  background: var(--game-dark, #769656);
+}
+
+.chess-square.white-piece {
+  color: var(--game-whitePiece, #ffffff);
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.6);
+}
+
+.chess-square.black-piece {
+  color: var(--game-blackPiece, #202020);
+}
+
+.chess-square.selected {
+  box-shadow: inset 0 0 0 3px var(--game-highlight, #6d8dff);
+}
+
+.chess-square.legal-move::before {
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--game-highlight, #6d8dff);
+  opacity: 0.55;
+}
+
 @media (max-width: 720px) {
   #game-mount {
     flex-direction: column;

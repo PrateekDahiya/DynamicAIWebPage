@@ -10,10 +10,17 @@ const gameArea = document.getElementById("game-area");
 const mount = document.getElementById("game-mount");
 const modeLabel = document.getElementById("game-mode-label");
 
-const GAME_MODULES = {
+// Built-in games ship in this file's own directory; anything else was generated on the fly
+// by the server and lives under /games/generated/<gameId>.js.
+const BUILTIN_MODULES = {
   tictactoe: () => import("./tictactoe.js"),
-  snake: () => import("./snake.js")
+  snake: () => import("./snake.js"),
+  chess: () => import("./chess.js")
 };
+
+function loadGameModule(id) {
+  return BUILTIN_MODULES[id] ? BUILTIN_MODULES[id]() : import(`/games/generated/${id}.js`);
+}
 
 let meta = null;
 
@@ -26,14 +33,19 @@ function applyTheme(theme) {
 }
 
 async function startGame(mode) {
-  const loader = GAME_MODULES[gameId];
-  if (!loader) return;
-  const mod = await loader();
-  landing.hidden = true;
-  gameArea.hidden = false;
   modeLabel.textContent = mode === "bot" ? "vs Bot" : "Multiplayer";
   mount.innerHTML = "";
-  mod.mount(mount, { mode, config: meta.config });
+  try {
+    const mod = await loadGameModule(gameId);
+    landing.hidden = true;
+    gameArea.hidden = false;
+    mod.mount(mount, { mode, config: meta.config });
+  } catch (err) {
+    console.error("Failed to load game module:", err);
+    mount.innerHTML = `<div class="ttt-status">Couldn't load this game's code — it may have failed to generate correctly.</div>`;
+    landing.hidden = true;
+    gameArea.hidden = false;
+  }
 }
 
 function backToMenu() {
@@ -43,9 +55,8 @@ function backToMenu() {
 }
 
 async function init() {
-  if (!gameId || !version || !GAME_MODULES[gameId]) {
+  if (!gameId || !version) {
     titleEl.textContent = "Unknown game";
-    descEl.textContent = "";
     document.getElementById("mode-buttons").hidden = true;
     return;
   }

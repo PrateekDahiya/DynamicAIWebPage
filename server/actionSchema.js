@@ -1,11 +1,14 @@
-const { getGameIds } = require("./games/registry");
+const logger = require("./logger");
 
 const CSS_VAR_NAME_RE = /^--[a-zA-Z0-9-]+$/;
 const COLOR_RE = /^(#[0-9a-fA-F]{3,8}|rgba?\([^)]*\)|hsla?\([^)]*\)|[a-zA-Z]+)$/;
 const LENGTH_RE = /^-?\d+(\.\d+)?(px|rem|em|%|vh|vw)$/;
+// Any game name is allowed — an unknown gameId triggers on-the-fly generation rather than
+// being rejected (see server/gameStore.js's ensureGameExists). Just constrain it to a short,
+// filesystem-and-URL-safe slug.
+const GAME_ID_RE = /^[a-z][a-z0-9-]{0,29}$/;
 
 const WIDGET_IDS = ["calculator", "timer", "todo", "chart", "notes"];
-const GAME_IDS = getGameIds();
 const ANIMATION_EFFECTS = ["particles", "snow", "stars", "rain", "gradient-shift", "none"];
 const ANIMATION_TARGETS = ["background", "#chat", "#app"];
 const LAYOUT_TARGETS = ["#chat", "#app", "#widgets"];
@@ -57,7 +60,10 @@ function sanitizeAction(action) {
       return { type: "updateLayout", target, style };
     }
     case "createWidget": {
-      if (!WIDGET_IDS.includes(action.widgetId)) return null;
+      if (!WIDGET_IDS.includes(action.widgetId)) {
+        logger.warn(`Dropped createWidget: unknown widgetId "${action.widgetId}"`, { knownWidgetIds: WIDGET_IDS });
+        return null;
+      }
       return {
         type: "createWidget",
         widgetId: action.widgetId,
@@ -66,11 +72,18 @@ function sanitizeAction(action) {
       };
     }
     case "startGame": {
-      if (!GAME_IDS.includes(action.gameId)) return null;
-      return { type: "startGame", gameId: action.gameId };
+      if (typeof action.gameId !== "string" || !GAME_ID_RE.test(action.gameId)) {
+        logger.warn(`Dropped startGame: invalid gameId "${action.gameId}"`);
+        return null;
+      }
+      const title = typeof action.title === "string" ? action.title.trim().slice(0, 60) : undefined;
+      return { type: "startGame", gameId: action.gameId, title };
     }
     case "updateGame": {
-      if (!GAME_IDS.includes(action.gameId)) return null;
+      if (typeof action.gameId !== "string" || !GAME_ID_RE.test(action.gameId)) {
+        logger.warn(`Dropped updateGame: invalid gameId "${action.gameId}"`);
+        return null;
+      }
       const changes = action.changes && typeof action.changes === "object" ? action.changes : {};
       return { type: "updateGame", gameId: action.gameId, changes };
     }
@@ -83,6 +96,7 @@ function sanitizeAction(action) {
       };
     }
     default:
+      logger.warn(`Dropped action: unknown type "${action.type}"`);
       return null;
   }
 }
@@ -108,6 +122,5 @@ module.exports = {
   sanitizeActions,
   isSafeCssValue,
   WIDGET_IDS,
-  GAME_IDS,
   ANIMATION_EFFECTS
 };

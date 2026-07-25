@@ -6,6 +6,7 @@ const { buildSystemPrompt } = require("../systemPrompt");
 const { sanitizeActions } = require("../actionSchema");
 const { resolveStart, resolveUpdate } = require("../gameStore");
 const { getGameDef } = require("../games/registry");
+const logger = require("../logger");
 
 const router = express.Router();
 const systemPrompt = buildSystemPrompt();
@@ -63,20 +64,35 @@ function trackThemeUpdates(actions) {
   }
 }
 
-// Turns the model's abstract startGame/updateGame intents into a concrete, versioned
-// game URL — reusing the latest existing version, or forking a new one for updateGame.
-function resolveGameActions(actions) {
-  return actions.map((action) => {
-    if (action.type === "startGame") {
-      const resolved = resolveStart(action.gameId, theme);
-      return { ...resolved, type: "startGame", title: getGameDef(action.gameId).title };
-    }
-    if (action.type === "updateGame") {
-      const resolved = resolveUpdate(action.gameId, action.changes);
-      return { ...resolved, type: "updateGame", title: getGameDef(action.gameId).title };
-    }
-    return action;
-  });
+// Turns the model's abstract startGame/updateGame intents into a concrete, versioned game
+// URL — reusing the latest existing version, forking a new one for updateGame, or generating
+// a brand new game on the fly if the model named one that doesn't exist yet. Generation can
+// fail (bad model output, syntax error, banned API) — that becomes a visible chat message
+// instead of a silently missing button.
+async function resolveGameActions(actions) {
+  return Promise.all(
+    actions.map(async (action) => {
+      if (action.type === "startGame") {
+        try {
+          const resolved = await resolveStart(action.gameId, theme, action.title);
+          return { ...resolved, type: "startGame", title: getGameDef(action.gameId).title };
+        } catch (err) {
+          logger.error(`Failed to start game "${action.gameId}"`, { message: err.message });
+          return { type: "gameGenerationFailed", gameId: action.gameId, message: err.message };
+        }
+      }
+      if (action.type === "updateGame") {
+        try {
+          const resolved = await resolveUpdate(action.gameId, action.changes, action.title);
+          return { ...resolved, type: "updateGame", title: getGameDef(action.gameId).title };
+        } catch (err) {
+          logger.error(`Failed to update game "${action.gameId}"`, { message: err.message });
+          return { type: "gameGenerationFailed", gameId: action.gameId, message: err.message };
+        }
+      }
+      return action;
+    })
+  );
 }
 
 router.get("/state", (_req, res) => {
@@ -90,10 +106,17 @@ router.post("/chat", async (req, res) => {
   }
 
   try {
+    logger.info(`User message: "${userMessage}"`);
     const raw = await chatCompletion({ systemPrompt, history, userMessage });
+    logger.info("Raw model output", { raw: raw.length > 800 ? raw.slice(0, 800) + "…" : raw });
+
     const { reply, actions: sanitized } = parseModelOutput(raw);
+    if (sanitized.length) {
+      logger.info(`Sanitized actions (${sanitized.length})`, { types: sanitized.map((a) => a.type) });
+    }
+
     trackThemeUpdates(sanitized);
-    const actions = resolveGameActions(sanitized);
+    const actions = await resolveGameActions(sanitized);
 
     history.push({ role: "user", content: userMessage });
     history.push({ role: "assistant", content: reply });
@@ -109,7 +132,7 @@ router.post("/chat", async (req, res) => {
     saveState();
     res.json({ reply, actions });
   } catch (err) {
-    console.error("[chat] error:", err.message);
+    logger.error("Chat request failed", { message: err.message });
     res.status(502).json({ error: "Failed to reach local Ollama model. Is `ollama serve` running?" });
   }
 });

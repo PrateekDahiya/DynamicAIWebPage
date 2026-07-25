@@ -2,6 +2,11 @@ import { applySetTheme, applyAnimateElement } from "./actions/theme.js";
 import { applyUpdateLayout, applyRemoveWidget } from "./actions/layout.js";
 import { applyCreateWidget } from "./actions/widgets.js";
 import { applyStartGame, applyUpdateGame } from "./actions/games.js";
+import { appendBubble } from "./chat.js";
+
+function applyGameGenerationFailed(action) {
+  appendBubble("system", `⚠️ Couldn't build "${action.gameId}": ${action.message || "unknown error"}`);
+}
 
 const handlers = {
   setTheme: applySetTheme,
@@ -10,7 +15,8 @@ const handlers = {
   removeWidget: applyRemoveWidget,
   createWidget: applyCreateWidget,
   startGame: applyStartGame,
-  updateGame: applyUpdateGame
+  updateGame: applyUpdateGame,
+  gameGenerationFailed: applyGameGenerationFailed
 };
 
 export function executeActions(actions) {

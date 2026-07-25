@@ -29,4 +29,26 @@ async function chatCompletion({ systemPrompt, history, userMessage }) {
   return data.message?.content ?? "";
 }
 
-module.exports = { chatCompletion, MODEL };
+// Plain-text completion with no JSON-format constraint — used for generating game source code.
+async function generateText(prompt, { numPredict = 2000 } = {}) {
+  const response = await fetch(`${OLLAMA_URL}/api/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: MODEL,
+      prompt,
+      stream: false,
+      options: { temperature: 0.4, num_predict: numPredict }
+    })
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`Ollama request failed (${response.status}): ${text}`);
+  }
+
+  const data = await response.json();
+  return data.response ?? "";
+}
+
+module.exports = { chatCompletion, generateText, MODEL };

@@ -1,7 +1,9 @@
 const fs = require("fs");
 const path = require("path");
-const { getGameDef } = require("./games/registry");
+const { getGameDef, isKnownGame, registerGeneratedGame } = require("./games/registry");
 const { isSafeCssValue } = require("./actionSchema");
+const { generateGameModule } = require("./gameGenerator");
+const logger = require("./logger");
 
 const STORE_FILE = path.join(__dirname, "data", "games.json");
 const MAX_VERSIONS_PER_GAME = 20;
@@ -24,6 +26,25 @@ function save() {
 function ensureGame(gameId) {
   if (!store[gameId]) store[gameId] = { versions: [] };
   return store[gameId];
+}
+
+function titleizeSlug(gameId) {
+  return gameId
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+// Generates and registers a brand new game the first time anyone asks for a gameId the
+// registry doesn't already know about — this is what makes "let's play chess" (or anything
+// else) work without a developer having to hand-build every game up front.
+async function ensureGameExists(gameId, titleHint) {
+  if (isKnownGame(gameId)) return;
+  const title = titleHint || titleizeSlug(gameId);
+  logger.info(`"${gameId}" is not in the game registry yet — generating it now`, { title });
+  const { title: generatedTitle, description } = await generateGameModule(gameId, title);
+  registerGeneratedGame(gameId, { title: generatedTitle, description });
 }
 
 // Seeds a brand new game's theme from the chat's current theme (if any), via the game's
@@ -113,13 +134,15 @@ function mergeConfig(baseConfig, changes, schema) {
   return { merged, changedKeys };
 }
 
-function resolveStart(gameId, currentTheme) {
+async function resolveStart(gameId, currentTheme, titleHint) {
+  await ensureGameExists(gameId, titleHint);
   const latest = getLatestVersion(gameId, currentTheme);
   return { gameId, version: latest.version, url: `/games/${gameId}/${latest.version}` };
 }
 
 // Always forks a new version on top of the latest one; v0 (and every prior version) is never mutated.
-function resolveUpdate(gameId, changes) {
+async function resolveUpdate(gameId, changes, titleHint) {
+  await ensureGameExists(gameId, titleHint);
   const game = ensureGame(gameId);
   const latest = getLatestVersion(gameId);
   const def = getGameDef(gameId);
