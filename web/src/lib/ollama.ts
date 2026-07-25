@@ -17,7 +17,7 @@ export async function* streamChat(
       model: MODEL,
       messages,
       stream: true,
-      options: { temperature: 0.7 },
+      options: { temperature: 0.5 },
     }),
     signal,
   });

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { streamChat, type ChatMessage } from "@/lib/ollama";
 import { buildSystemPrompt, ACTIONS_DELIMITER } from "@/lib/system-prompt";
 import { sanitizeActions } from "@/lib/action-schema";
-import { resolveThemeActions } from "@/lib/theme-resolver";
+import { resolveActions } from "@/lib/action-resolver";
 
 export const runtime = "nodejs";
 
@@ -28,6 +28,30 @@ function parseTrailingActions(raw: string): { intent: string; actions: unknown[]
   } catch {
     return { intent: "conversation", actions: [] };
   }
+}
+
+// Defensive fallback for when the model emits the {intent, actions} JSON but forgets the
+// literal ACTIONS_DELIMITER line — searches backward from the last `"actions"` occurrence for
+// an opening brace whose contents actually parse as valid JSON, so a dropped delimiter doesn't
+// silently produce zero actions (or worse, permanently store the raw JSON as visible reply text).
+function extractFallbackActions(fullBuffer: string): { replyText: string; actions: unknown[] } | null {
+  const marker = fullBuffer.lastIndexOf('"actions"');
+  if (marker === -1) return null;
+
+  let start = fullBuffer.lastIndexOf("{", marker);
+  while (start !== -1) {
+    const candidate = fullBuffer.slice(start).trim();
+    try {
+      const parsed = JSON.parse(candidate);
+      if (parsed && Array.isArray(parsed.actions)) {
+        return { replyText: fullBuffer.slice(0, start).trim(), actions: parsed.actions };
+      }
+    } catch {
+      // keep searching earlier candidate braces
+    }
+    start = start > 0 ? fullBuffer.lastIndexOf("{", start - 1) : -1;
+  }
+  return null;
 }
 
 export async function POST(req: Request) {
@@ -138,15 +162,23 @@ export async function POST(req: Request) {
         controller.enqueue(encoder.encode(sseEvent("token", { text: buffer.slice(sentUpTo) })));
       }
 
-      const replyText = (delimiterIndex === -1 ? buffer : buffer.slice(0, delimiterIndex)).trim();
-      const actionsRaw = delimiterIndex === -1 ? "" : buffer.slice(delimiterIndex + ACTIONS_DELIMITER.length);
-      const { actions: rawActions } = parseTrailingActions(actionsRaw);
+      let replyText = (delimiterIndex === -1 ? buffer : buffer.slice(0, delimiterIndex)).trim();
+      let rawActions: unknown[];
+
+      if (delimiterIndex === -1) {
+        const fallback = extractFallbackActions(buffer);
+        replyText = fallback ? fallback.replyText : replyText;
+        rawActions = fallback ? fallback.actions : [];
+      } else {
+        rawActions = parseTrailingActions(buffer.slice(delimiterIndex + ACTIONS_DELIMITER.length)).actions;
+      }
+
       const sanitized = sanitizeActions(rawActions);
 
       let resolvedActions: unknown[] = [];
       if (replyText) {
         try {
-          resolvedActions = await resolveThemeActions(chatId, sanitized);
+          resolvedActions = await resolveActions(session.user.id, chatId, sanitized);
         } catch {
           resolvedActions = [];
         }

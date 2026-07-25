@@ -1,0 +1,167 @@
+/* Styling for the ported vanilla game engines (public/games/*.js) — these classes are the exact
+   ones that code creates via className assignments, carried over from the original app's
+   public/games/shell.css. --game-* vars are set per-page (scoped to the game wrapper, not
+   documentElement) by the artifact play page based on that version's saved theme. */
+
+.game-mount-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 32px;
+  flex-wrap: wrap;
+}
+
+.game-board-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.game-side-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 220px;
+  max-width: 260px;
+  padding: 18px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--game-fg, inherit);
+}
+
+.game-side-panel h4 {
+  margin: 0;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.55;
+}
+
+/* Tic Tac Toe */
+.ttt-status {
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.ttt-grid {
+  display: grid;
+  gap: 6px;
+}
+
+.ttt-cell {
+  width: 100%;
+  height: 100%;
+  font-size: 2rem;
+  font-weight: 700;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--game-accent, #6d8dff);
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.1s ease;
+}
+
+.ttt-cell:not(:disabled):hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.ttt-cell:disabled {
+  cursor: default;
+}
+
+.ttt-reset {
+  margin-top: 4px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: transparent;
+  color: var(--game-fg, inherit);
+  cursor: pointer;
+}
+
+.ttt-reset:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Snake */
+.snake-status {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.snake-hint {
+  font-size: 0.8rem;
+  opacity: 0.6;
+}
+
+.snake-canvas {
+  outline: none;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* Chess */
+.chess-board {
+  display: grid;
+  grid-template-columns: repeat(8, 58px);
+  grid-template-rows: repeat(8, 58px);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.chess-square {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.1rem;
+  cursor: pointer;
+  position: relative;
+  user-select: none;
+}
+
+.chess-square.light {
+  background: var(--game-light, #eeeed2);
+}
+
+.chess-square.dark {
+  background: var(--game-dark, #769656);
+}
+
+.chess-square.white-piece {
+  color: var(--game-whitePiece, #ffffff);
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.6);
+}
+
+.chess-square.black-piece {
+  color: var(--game-blackPiece, #202020);
+}
+
+.chess-square.selected {
+  box-shadow: inset 0 0 0 3px var(--game-highlight, #6d8dff);
+}
+
+.chess-square.legal-move::before {
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--game-highlight, #6d8dff);
+  opacity: 0.55;
+}
+
+@media (max-width: 720px) {
+  .game-mount-row {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .game-side-panel {
+    max-width: 100%;
+    width: 100%;
+  }
+}

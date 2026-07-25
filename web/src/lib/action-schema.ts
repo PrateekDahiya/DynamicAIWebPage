@@ -1,9 +1,16 @@
 const CSS_VAR_NAME_RE = /^--[a-zA-Z0-9-]+$/;
 const COLOR_RE = /^(#[0-9a-fA-F]{3,8}|rgba?\([^)]*\)|hsla?\([^)]*\)|[a-zA-Z]+)$/;
 const LENGTH_RE = /^-?\d+(\.\d+)?(px|rem|em|%|vh|vw)$/;
+// Any app name is allowed for CREATE_APP/OPEN_APP — an unknown slug either resolves to a
+// built-in or (step 5) triggers on-the-fly generation, rather than being rejected here. Just
+// constrain it to a short, filesystem-and-URL-safe slug.
+const SLUG_RE = /^[a-z][a-z0-9-]{0,29}$/;
 
 export const ANIMATION_EFFECTS = ["particles", "snow", "stars", "rain", "gradient-shift", "none"] as const;
 export type AnimationEffect = (typeof ANIMATION_EFFECTS)[number];
+
+export const ARTIFACT_CATEGORIES = ["GAME", "TOOL", "UTILITY", "DASHBOARD", "EDITOR"] as const;
+export type ArtifactCategoryValue = (typeof ARTIFACT_CATEGORIES)[number];
 
 export type ThemeVars = Record<string, string>;
 export type ThemeBackground = { type: "solid" | "gradient"; value: string };
@@ -12,7 +19,9 @@ export type ThemeAnimation = { target: string; effect: AnimationEffect; intensit
 export type Action =
   | { type: "SET_THEME"; vars?: ThemeVars; background?: ThemeBackground; animation?: ThemeAnimation }
   | { type: "UPDATE_THEME"; vars?: ThemeVars; background?: ThemeBackground; animation?: ThemeAnimation }
-  | { type: "RESET_THEME" };
+  | { type: "RESET_THEME" }
+  | { type: "CREATE_APP" | "OPEN_APP"; slug: string; category: ArtifactCategoryValue; title?: string }
+  | { type: "UPDATE_APP"; slug: string; category: ArtifactCategoryValue; changes: Record<string, unknown> };
 
 export function isSafeCssValue(value: unknown): value is string {
   if (typeof value !== "string" || value.length === 0 || value.length > 200) return false;
@@ -56,6 +65,12 @@ function sanitizeAnimation(animation: unknown): ThemeAnimation | undefined {
   };
 }
 
+function sanitizeCategory(category: unknown): ArtifactCategoryValue {
+  return ARTIFACT_CATEGORIES.includes(category as ArtifactCategoryValue)
+    ? (category as ArtifactCategoryValue)
+    : "GAME";
+}
+
 function sanitizeAction(raw: unknown): Action | null {
   if (!raw || typeof raw !== "object" || typeof (raw as Record<string, unknown>).type !== "string") {
     return null;
@@ -73,6 +88,17 @@ function sanitizeAction(raw: unknown): Action | null {
     }
     case "RESET_THEME":
       return { type: "RESET_THEME" };
+    case "CREATE_APP":
+    case "OPEN_APP": {
+      if (typeof action.slug !== "string" || !SLUG_RE.test(action.slug)) return null;
+      const title = typeof action.title === "string" ? action.title.trim().slice(0, 60) : undefined;
+      return { type: action.type, slug: action.slug, category: sanitizeCategory(action.category), title };
+    }
+    case "UPDATE_APP": {
+      if (typeof action.slug !== "string" || !SLUG_RE.test(action.slug)) return null;
+      const changes = action.changes && typeof action.changes === "object" ? (action.changes as Record<string, unknown>) : {};
+      return { type: "UPDATE_APP", slug: action.slug, category: sanitizeCategory(action.category), changes };
+    }
     default:
       return null;
   }

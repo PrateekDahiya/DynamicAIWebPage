@@ -8,6 +8,7 @@ import { ThemeEngineProvider } from "@/components/theme/theme-engine-provider";
 import { BackgroundEffectCanvas } from "@/components/theme/background-effect-canvas";
 import "highlight.js/styles/github-dark.css";
 import "./globals.css";
+import "@/styles/game-shell.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
