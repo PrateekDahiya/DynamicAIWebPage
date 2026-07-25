@@ -26,14 +26,27 @@ function ensureGame(gameId) {
   return store[gameId];
 }
 
+// Seeds a brand new game's theme from the chat's current theme (if any), via the game's
+// themeMap. Only touches the keys the chat theme actually knows about (bg/fg/accent) —
+// game-specific piece colors (x/o, bot, food, ...) keep their sensible registry defaults.
+function seedThemeFromChat(defaultTheme, themeMap, currentTheme) {
+  if (!themeMap || !currentTheme) return defaultTheme;
+  const seeded = { ...defaultTheme };
+  for (const [chatKey, themeKey] of Object.entries(themeMap)) {
+    if (currentTheme[chatKey]) seeded[themeKey] = currentTheme[chatKey];
+  }
+  return seeded;
+}
+
 // Lazily creates v0 (the untouched original) the first time a game is requested.
-function getLatestVersion(gameId) {
+function getLatestVersion(gameId, currentTheme) {
   const game = ensureGame(gameId);
   if (!game.versions.length) {
     const def = getGameDef(gameId);
+    const theme = seedThemeFromChat(def.defaultConfig.theme, def.themeMap, currentTheme);
     game.versions.push({
       version: "v0",
-      config: def.defaultConfig,
+      config: { ...def.defaultConfig, theme },
       label: "original",
       createdAt: new Date().toISOString()
     });
@@ -81,8 +94,8 @@ function mergeConfig(baseConfig, changes, schema) {
   return { merged, changedKeys };
 }
 
-function resolveStart(gameId) {
-  const latest = getLatestVersion(gameId);
+function resolveStart(gameId, currentTheme) {
+  const latest = getLatestVersion(gameId, currentTheme);
   return { gameId, version: latest.version, url: `/games/${gameId}/${latest.version}` };
 }
 

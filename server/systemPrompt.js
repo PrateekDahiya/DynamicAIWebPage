@@ -62,6 +62,12 @@ its own page/card, so the reply should just be a short intro line.
 IMPORTANT: only use updateGame when the user is clearly asking to change an EXISTING game (referring
 back to a game already discussed/opened in this conversation) rather than asking to open one fresh.
 
+IMPORTANT: if the message names a specific gameId (tic tac toe, snake) together with a visual word
+like "theme", "color", "colors", "look", or "style" — e.g. "give tic tac toe a neon theme", "change
+snake's colors", "make the tic tac toe board look cyberpunk" — that is a per-game "theme" field
+inside updateGame's "changes", NOT a page-wide setTheme call. setTheme only applies when the request
+is about the chat page/background in general, with no specific game named.
+
 Examples:
 
 User: "make the background red"
@@ -84,6 +90,9 @@ User: "make the tic tac toe board bigger and the bot harder"
 
 User: "give snake a neon theme and slow it down"
 {"reply":"Neon Snake, slowed down for you.","actions":[{"type":"updateGame","gameId":"snake","changes":{"speedMs":250,"theme":{"bg":"#0a0014","snake":"#39ff14","food":"#ff00ff"}}}]}
+
+User: "give tic tac toe a neon green color scheme"
+{"reply":"Tic Tac Toe now has a neon green look.","actions":[{"type":"updateGame","gameId":"tictactoe","changes":{"theme":{"bg":"#0a0f0a","fg":"#eafff0","accent":"#39ff14","x":"#39ff14","o":"#00cc66"}}}]}
 
 User: "open a calculator"
 {"reply":"Here's a calculator.","actions":[{"type":"createWidget","widgetId":"calculator","mountPoint":"#widgets"}]}

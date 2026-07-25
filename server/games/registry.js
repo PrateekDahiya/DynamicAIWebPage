@@ -14,7 +14,10 @@ const GAMES = {
       winLength: { type: "int", min: 3, max: 5 },
       botDifficulty: { type: "enum", values: ["easy", "medium", "hard"] },
       theme: { type: "colorMap", keys: ["bg", "fg", "accent", "x", "o"] }
-    }
+    },
+    // maps a chat theme field (setTheme's --bg/--fg/--accent) to this game's own theme key,
+    // used only to seed a brand new game's v0 so it starts looking like the current chat theme
+    themeMap: { bg: "bg", fg: "fg", accent: "accent" }
   },
   snake: {
     title: "Snake",
@@ -31,7 +34,8 @@ const GAMES = {
       speedMs: { type: "int", min: 60, max: 400 },
       botDifficulty: { type: "enum", values: ["easy", "medium", "hard"] },
       theme: { type: "colorMap", keys: ["bg", "fg", "snake", "bot", "food"] }
-    }
+    },
+    themeMap: { bg: "bg", fg: "fg", accent: "snake" }
   }
 };
 

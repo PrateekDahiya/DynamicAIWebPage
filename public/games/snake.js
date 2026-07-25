@@ -1,8 +1,11 @@
 export function mount(container, { mode, config }) {
   const size = config.boardSize || 15;
-  const cellPx = 18;
+  const cellPx = 22;
   const speedMs = config.speedMs || 150;
   const theme = config.theme || {};
+
+  const boardCol = document.createElement("div");
+  boardCol.className = "game-board-col";
 
   const status = document.createElement("div");
   status.className = "snake-status";
@@ -17,7 +20,19 @@ export function mount(container, { mode, config }) {
   canvas.tabIndex = 0;
   canvas.className = "snake-canvas";
 
-  container.append(status, hint, canvas);
+  boardCol.append(status, hint, canvas);
+
+  const sidePanel = document.createElement("div");
+  sidePanel.className = "game-side-panel";
+  sidePanel.innerHTML = `
+    <h4>Match info</h4>
+    <div>Board: ${size} × ${size}</div>
+    <div>Mode: ${mode === "multiplayer" ? "Multiplayer" : "vs Bot"}</div>
+    ${mode === "bot" ? `<div>Bot difficulty: ${config.botDifficulty || "medium"}</div>` : ""}
+    <div>Speed: ${speedMs}ms/tick</div>
+  `;
+
+  container.append(boardCol, sidePanel);
   canvas.focus();
 
   const ctx = canvas.getContext("2d");

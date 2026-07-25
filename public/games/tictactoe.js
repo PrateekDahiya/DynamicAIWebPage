@@ -9,12 +9,14 @@ export function mount(container, { mode, config }) {
   let winner = null;
 
   const wrapper = document.createElement("div");
+  wrapper.className = "game-board-col";
   const status = document.createElement("div");
   status.className = "ttt-status";
   const grid = document.createElement("div");
   grid.className = "ttt-grid";
-  grid.style.gridTemplateColumns = `repeat(${size}, 48px)`;
-  grid.style.gridTemplateRows = `repeat(${size}, 48px)`;
+  const cellSize = size <= 3 ? 72 : size <= 4 ? 62 : 52;
+  grid.style.gridTemplateColumns = `repeat(${size}, ${cellSize}px)`;
+  grid.style.gridTemplateRows = `repeat(${size}, ${cellSize}px)`;
 
   const resetBtn = document.createElement("button");
   resetBtn.textContent = "Restart";
@@ -30,7 +32,17 @@ export function mount(container, { mode, config }) {
   }
 
   wrapper.append(status, grid, resetBtn);
-  container.appendChild(wrapper);
+
+  const sidePanel = document.createElement("div");
+  sidePanel.className = "game-side-panel";
+  sidePanel.innerHTML = `
+    <h4>Match info</h4>
+    <div>Board: ${size} × ${size}, connect ${winLength}</div>
+    <div>Mode: ${vsBot ? "vs Bot" : "Multiplayer"}</div>
+    ${vsBot ? `<div>Bot difficulty: ${config.botDifficulty || "medium"}</div>` : "<div>P1 is X, P2 is O — take turns clicking a cell.</div>"}
+  `;
+
+  container.append(wrapper, sidePanel);
 
   const winLines = buildWinLines();
 

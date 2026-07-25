@@ -15,6 +15,7 @@ const systemPrompt = buildSystemPrompt();
 const STATE_FILE = path.join(__dirname, "..", "data", "session.json");
 const MAX_HISTORY_MESSAGES = 20;
 const MAX_TURNS = 100;
+const THEME_KEYS = { "--bg": "bg", "--fg": "fg", "--accent": "accent" };
 
 function loadState() {
   try {
@@ -22,18 +23,19 @@ function loadState() {
     const parsed = JSON.parse(raw);
     return {
       history: Array.isArray(parsed.history) ? parsed.history : [],
-      turns: Array.isArray(parsed.turns) ? parsed.turns : []
+      turns: Array.isArray(parsed.turns) ? parsed.turns : [],
+      theme: parsed.theme && typeof parsed.theme === "object" ? parsed.theme : null
     };
   } catch {
-    return { history: [], turns: [] };
+    return { history: [], turns: [], theme: null };
   }
 }
 
-let { history, turns } = loadState();
+let { history, turns, theme } = loadState();
 
 function saveState() {
   fs.mkdirSync(path.dirname(STATE_FILE), { recursive: true });
-  fs.writeFileSync(STATE_FILE, JSON.stringify({ history, turns }), "utf-8");
+  fs.writeFileSync(STATE_FILE, JSON.stringify({ history, turns, theme }), "utf-8");
 }
 
 function parseModelOutput(raw) {
@@ -47,12 +49,26 @@ function parseModelOutput(raw) {
   }
 }
 
+// Remembers the chat's current look (bg/fg/accent) so a brand new game can be seeded to
+// match it — this is what lets "let's play tic tac toe" open in whatever theme is active.
+function trackThemeUpdates(actions) {
+  const setThemeAction = actions.find((a) => a.type === "setTheme" && a.vars);
+  if (!setThemeAction) return;
+  const update = {};
+  for (const [cssVar, key] of Object.entries(THEME_KEYS)) {
+    if (setThemeAction.vars[cssVar]) update[key] = setThemeAction.vars[cssVar];
+  }
+  if (Object.keys(update).length) {
+    theme = { ...theme, ...update };
+  }
+}
+
 // Turns the model's abstract startGame/updateGame intents into a concrete, versioned
 // game URL — reusing the latest existing version, or forking a new one for updateGame.
 function resolveGameActions(actions) {
   return actions.map((action) => {
     if (action.type === "startGame") {
-      const resolved = resolveStart(action.gameId);
+      const resolved = resolveStart(action.gameId, theme);
       return { ...resolved, type: "startGame", title: getGameDef(action.gameId).title };
     }
     if (action.type === "updateGame") {
@@ -76,6 +92,7 @@ router.post("/chat", async (req, res) => {
   try {
     const raw = await chatCompletion({ systemPrompt, history, userMessage });
     const { reply, actions: sanitized } = parseModelOutput(raw);
+    trackThemeUpdates(sanitized);
     const actions = resolveGameActions(sanitized);
 
     history.push({ role: "user", content: userMessage });
@@ -100,6 +117,7 @@ router.post("/chat", async (req, res) => {
 router.post("/reset", (_req, res) => {
   history = [];
   turns = [];
+  theme = null;
   saveState();
   res.json({ ok: true });
 });
