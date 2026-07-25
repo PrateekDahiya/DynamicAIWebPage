@@ -1,3 +1,5 @@
+import { WIDGET_IDS, type WidgetId } from "./widgets/registry";
+
 const CSS_VAR_NAME_RE = /^--[a-zA-Z0-9-]+$/;
 const COLOR_RE = /^(#[0-9a-fA-F]{3,8}|rgba?\([^)]*\)|hsla?\([^)]*\)|[a-zA-Z]+)$/;
 const LENGTH_RE = /^-?\d+(\.\d+)?(px|rem|em|%|vh|vw)$/;
@@ -21,7 +23,10 @@ export type Action =
   | { type: "UPDATE_THEME"; vars?: ThemeVars; background?: ThemeBackground; animation?: ThemeAnimation }
   | { type: "RESET_THEME" }
   | { type: "CREATE_APP" | "OPEN_APP"; slug: string; category: ArtifactCategoryValue; title?: string }
-  | { type: "UPDATE_APP"; slug: string; category: ArtifactCategoryValue; changes: Record<string, unknown> };
+  | { type: "UPDATE_APP"; slug: string; category: ArtifactCategoryValue; changes: Record<string, unknown> }
+  | { type: "CREATE_WIDGET"; widgetId: WidgetId; props?: Record<string, unknown> }
+  | { type: "UPDATE_WIDGET"; widgetId: WidgetId; props: Record<string, unknown> }
+  | { type: "REMOVE_WIDGET"; widgetId: WidgetId };
 
 export function isSafeCssValue(value: unknown): value is string {
   if (typeof value !== "string" || value.length === 0 || value.length > 200) return false;
@@ -98,6 +103,20 @@ function sanitizeAction(raw: unknown): Action | null {
       if (typeof action.slug !== "string" || !SLUG_RE.test(action.slug)) return null;
       const changes = action.changes && typeof action.changes === "object" ? (action.changes as Record<string, unknown>) : {};
       return { type: "UPDATE_APP", slug: action.slug, category: sanitizeCategory(action.category), changes };
+    }
+    case "CREATE_WIDGET": {
+      if (!WIDGET_IDS.includes(action.widgetId as WidgetId)) return null;
+      const props = action.props && typeof action.props === "object" ? (action.props as Record<string, unknown>) : {};
+      return { type: "CREATE_WIDGET", widgetId: action.widgetId as WidgetId, props };
+    }
+    case "UPDATE_WIDGET": {
+      if (!WIDGET_IDS.includes(action.widgetId as WidgetId)) return null;
+      const props = action.props && typeof action.props === "object" ? (action.props as Record<string, unknown>) : {};
+      return { type: "UPDATE_WIDGET", widgetId: action.widgetId as WidgetId, props };
+    }
+    case "REMOVE_WIDGET": {
+      if (!WIDGET_IDS.includes(action.widgetId as WidgetId)) return null;
+      return { type: "REMOVE_WIDGET", widgetId: action.widgetId as WidgetId };
     }
     default:
       return null;

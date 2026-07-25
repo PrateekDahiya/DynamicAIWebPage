@@ -6,6 +6,7 @@ import { MessageBubble, type ChatRole } from "./message-bubble";
 import { Composer } from "./composer";
 import type { AppCard } from "./app-action-card";
 import { useThemeStore, type ThemeBackground, type ThemeAnimation } from "@/stores/theme-store";
+import { useWidgetStore, type WidgetItem } from "@/stores/widget-store";
 
 type ChatMessage = { id: string; role: ChatRole; content: string; appCards?: AppCard[] };
 type ThemeState = {
@@ -18,7 +19,9 @@ type ResolvedAction =
   | { type: "SET_THEME" | "UPDATE_THEME"; vars?: Record<string, string>; background?: ThemeBackground; animation?: ThemeAnimation }
   | { type: "CREATE_APP" | "OPEN_APP" | "UPDATE_APP"; title: string; url: string; version: string; label?: string }
   | { type: "APP_GENERATION_PENDING"; jobId: string; slug: string; title: string }
-  | { type: "APP_ACTION_FAILED"; slug: string; message: string };
+  | { type: "APP_ACTION_FAILED"; slug: string; message: string }
+  | { type: "CREATE_WIDGET" | "UPDATE_WIDGET"; id: string; widgetId: string; title: string; props: Record<string, unknown>; order: number }
+  | { type: "REMOVE_WIDGET"; widgetId: string };
 
 function parseSSEChunk(raw: string): { event: string; data: unknown }[] {
   return raw
@@ -54,10 +57,12 @@ export function ChatWindow({
   chatId,
   initialMessages,
   initialTheme,
+  initialWidgets,
 }: {
   chatId: string;
   initialMessages: { id: string; role: ChatRole; content: string; actions: ResolvedAction[] }[];
   initialTheme: ThemeState | null;
+  initialWidgets: WidgetItem[];
 }) {
   const router = useRouter();
   const [messages, setMessages] = useState<ChatMessage[]>(() =>
@@ -74,6 +79,9 @@ export function ChatWindow({
   const setActiveChatId = useThemeStore((s) => s.setActiveChatId);
   const setTheme = useThemeStore((s) => s.setTheme);
   const resetTheme = useThemeStore((s) => s.reset);
+  const setWidgets = useWidgetStore((s) => s.setWidgets);
+  const upsertWidget = useWidgetStore((s) => s.upsertWidget);
+  const removeWidgetFromStore = useWidgetStore((s) => s.removeWidget);
 
   // Each chat has its own living theme (Theme rows are chatId-scoped) — hydrate the shared
   // theme store whenever the active chat changes, so switching conversations switches the look.
@@ -81,20 +89,30 @@ export function ChatWindow({
     setActiveChatId(chatId);
     if (initialTheme) setTheme(initialTheme);
     else resetTheme();
-  }, [chatId, initialTheme, setActiveChatId, setTheme, resetTheme]);
+    setWidgets(initialWidgets);
+  }, [chatId, initialTheme, initialWidgets, setActiveChatId, setTheme, resetTheme, setWidgets]);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   function applyResolvedActions(assistantId: string, actions: ResolvedAction[]) {
-    const themeActions = actions.filter(
-      (a): a is Extract<ResolvedAction, { type: "SET_THEME" | "UPDATE_THEME" | "RESET_THEME" }> =>
-        a.type === "SET_THEME" || a.type === "UPDATE_THEME" || a.type === "RESET_THEME"
-    );
-    for (const action of themeActions) {
-      if (action.type === "RESET_THEME") resetTheme();
-      else setTheme({ vars: action.vars, background: action.background, animation: action.animation });
+    for (const action of actions) {
+      if (action.type === "RESET_THEME") {
+        resetTheme();
+      } else if (action.type === "SET_THEME" || action.type === "UPDATE_THEME") {
+        setTheme({ vars: action.vars, background: action.background, animation: action.animation });
+      } else if (action.type === "CREATE_WIDGET" || action.type === "UPDATE_WIDGET") {
+        upsertWidget({
+          id: action.id,
+          widgetId: action.widgetId,
+          title: action.title,
+          props: action.props,
+          order: action.order,
+        });
+      } else if (action.type === "REMOVE_WIDGET") {
+        removeWidgetFromStore(action.widgetId);
+      }
     }
 
     const appCards = toAppCards(actions, assistantId);

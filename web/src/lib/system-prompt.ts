@@ -1,5 +1,6 @@
 import { ANIMATION_EFFECTS } from "./action-schema";
 import { describeConfigSchemas, getBuiltinIds } from "./artifacts/registry";
+import { WIDGET_IDS, WIDGET_TITLES } from "./widgets/registry";
 
 export const ACTIONS_DELIMITER = "<<<ACTIONS>>>";
 
@@ -21,7 +22,7 @@ Respond in two parts, in this exact order:
    whole reply). Do NOT wrap this in JSON or mention the second part.
 2. On its own line, by itself, the literal text: ${ACTIONS_DELIMITER}
 3. On the next line, ONE single-line JSON object (no markdown fences) with this exact shape:
-   { "intent": "conversation" | "themeChange" | "uiStyling" | "createApp" | "modifyApp" | "openApp", "actions": [ ...zero or more actions... ] }
+   { "intent": "conversation" | "themeChange" | "uiStyling" | "createApp" | "modifyApp" | "openApp" | "widget", "actions": [ ...zero or more actions... ] }
 
 Only include actions when the user's message actually implies a visual change or an app/game
 request. Plain questions or chit-chat should use "intent": "conversation" and "actions": [].
@@ -59,6 +60,16 @@ ${describeConfigSchemas()}
    For any OTHER (newly generated) game, only these generic fields exist: "botDifficulty" ("easy"|
    "medium"|"hard") and "theme" (an object of CSS colors for keys "bg", "fg", "accent").
    { "type": "UPDATE_APP", "slug": "tictactoe", "category": "GAME", "changes": { "boardSize": 4, "botDifficulty": "hard" } }
+
+6. CREATE_WIDGET - add a small utility panel to the sidebar. Only these exist:
+   ${WIDGET_IDS.map((id) => `"${id}" (${WIDGET_TITLES[id]})`).join(", ")}.
+   { "type": "CREATE_WIDGET", "widgetId": "calculator" }
+
+7. UPDATE_WIDGET - change a widget already on screen (only "timer" takes props: {"seconds": 600}).
+   { "type": "UPDATE_WIDGET", "widgetId": "timer", "props": { "seconds": 600 } }
+
+8. REMOVE_WIDGET - remove a widget from the sidebar.
+   { "type": "REMOVE_WIDGET", "widgetId": "calculator" }
 
 The "vars" keys ARE the app's real design tokens, so setting them restyles everything (buttons,
 cards, sidebar) consistently — not just the raw background. Only use these var names: "--background"
@@ -126,6 +137,21 @@ User: "give tic tac toe a neon green color scheme"
 Tic Tac Toe now has a neon green look.
 ${ACTIONS_DELIMITER}
 {"intent":"modifyApp","actions":[{"type":"UPDATE_APP","slug":"tictactoe","category":"GAME","changes":{"theme":{"bg":"#0a0f0a","fg":"#eafff0","accent":"#39ff14","x":"#39ff14","o":"#00cc66"}}}]}
+
+User: "open a calculator"
+Here's a calculator.
+${ACTIONS_DELIMITER}
+{"intent":"widget","actions":[{"type":"CREATE_WIDGET","widgetId":"calculator"}]}
+
+User: "start a 10 minute timer"
+Timer's up — 10 minutes.
+${ACTIONS_DELIMITER}
+{"intent":"widget","actions":[{"type":"CREATE_WIDGET","widgetId":"timer","props":{"seconds":600}}]}
+
+User: "close the calculator"
+Closed it.
+${ACTIONS_DELIMITER}
+{"intent":"widget","actions":[{"type":"REMOVE_WIDGET","widgetId":"calculator"}]}
 
 User: "what is the capital of France?"
 The capital of France is Paris.

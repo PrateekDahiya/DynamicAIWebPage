@@ -3,6 +3,8 @@ import type { Action } from "@/lib/action-schema";
 import { resolveThemeAction } from "@/lib/theme-resolver";
 import { resolveArtifactStart, resolveArtifactUpdate, ArtifactGenerationUnavailableError } from "@/lib/artifacts/store";
 import { enqueueGenerationJob } from "@/lib/artifacts/generation-jobs";
+import { createWidget, updateWidget, removeWidget } from "@/lib/widgets/store";
+import { WIDGET_TITLES } from "@/lib/widgets/registry";
 
 // Resolves the model's abstract action intents (theme changes, app open/create/update) into
 // concrete results, in order — theme actions resolved earlier in the same turn feed into
@@ -68,6 +70,24 @@ export async function resolveActions(userId: string, chatId: string, actions: Ac
           message: err instanceof ArtifactGenerationUnavailableError ? err.message : "Failed to update app.",
         });
       }
+      continue;
+    }
+
+    if (action.type === "CREATE_WIDGET") {
+      const result = await createWidget(chatId, action.widgetId, action.props ?? {});
+      resolved.push({ type: "CREATE_WIDGET", ...result });
+      continue;
+    }
+
+    if (action.type === "UPDATE_WIDGET") {
+      const result = await updateWidget(chatId, action.widgetId, action.props);
+      resolved.push({ type: "UPDATE_WIDGET", ...result });
+      continue;
+    }
+
+    if (action.type === "REMOVE_WIDGET") {
+      await removeWidget(chatId, action.widgetId);
+      resolved.push({ type: "REMOVE_WIDGET", widgetId: action.widgetId, title: WIDGET_TITLES[action.widgetId] });
     }
   }
 
