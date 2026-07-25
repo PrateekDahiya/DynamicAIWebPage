@@ -4,6 +4,7 @@ import { ThemeProvider } from "next-themes";
 import { SessionProvider } from "next-auth/react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
+import "highlight.js/styles/github-dark.css";
 import "./globals.css";
 
 const geistSans = Geist({

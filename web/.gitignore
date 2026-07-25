@@ -43,8 +43,9 @@ next-env.d.ts
 /src/generated/prisma
 
 # local sqlite db (schema/migrations are tracked; the data file is not)
+/dev.db
 /prisma/dev.db
-/prisma/*.db-journal
+*.db-journal
 
 # ai-generated artifact modules (runtime output, recreated on demand)
 /data/
