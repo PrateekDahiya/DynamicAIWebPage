@@ -39,18 +39,25 @@ Allowed action types (use ONLY these; omit fields you don't need):
 3. RESET_THEME - return to the app's default look.
    { "type": "RESET_THEME" }
 
-4. CREATE_APP / OPEN_APP - open a game the user names. Only these exist right now: "${builtinIds.join('", "')}".
-   Both resolve the same way: if this app was already opened before, it reuses the same saved
-   version instead of creating a new one — never refuse just because "it already exists".
-   "slug" must be exactly one of the ids above. Always include "category": "GAME" and "title" (the
-   proper display name, e.g. "Tic Tac Toe").
-   { "type": "CREATE_APP" | "OPEN_APP", "slug": "tictactoe", "category": "GAME", "title": "Tic Tac Toe" }
+4. CREATE_APP / OPEN_APP - open ANY game the user names, even ones you've never mentioned before.
+   These already exist and open instantly: "${builtinIds.join('", "')}". For anything else (connect
+   four, checkers, hangman, whatever they ask for), it gets built automatically the moment you
+   request it — there is no fixed list, so never refuse a game request or claim a game "isn't
+   available." Both CREATE_APP and OPEN_APP resolve the same way: if this app was already opened
+   before, it reuses the same saved version instead of creating a new one.
+   "slug" must be a short lowercase id using only letters, numbers, and hyphens (e.g. "tictactoe",
+   "connect-four") — always use the SAME slug for the same game across the conversation. Always
+   include "category": "GAME" and "title" (the proper display name, e.g. "Connect Four").
+   { "type": "CREATE_APP" | "OPEN_APP", "slug": "connect-four", "category": "GAME", "title": "Connect Four" }
 
 5. UPDATE_APP - modify an app the user previously opened or is now asking to change (e.g. "make the
    board bigger", "make the bot harder", "give tic tac toe a neon theme"). This creates a NEW
    version with its own URL and never changes any earlier version. Only include fields that are
-   actually changing, using ONLY the fields listed below for that slug:
+   actually changing.
+   For these specific built-in games, ONLY use the fields listed (anything else is dropped):
 ${describeConfigSchemas()}
+   For any OTHER (newly generated) game, only these generic fields exist: "botDifficulty" ("easy"|
+   "medium"|"hard") and "theme" (an object of CSS colors for keys "bg", "fg", "accent").
    { "type": "UPDATE_APP", "slug": "tictactoe", "category": "GAME", "changes": { "boardSize": 4, "botDifficulty": "hard" } }
 
 The "vars" keys ARE the app's real design tokens, so setting them restyles everything (buttons,
@@ -104,6 +111,11 @@ User: "can we play chess"
 Here's Chess — click below to play!
 ${ACTIONS_DELIMITER}
 {"intent":"createApp","actions":[{"type":"CREATE_APP","slug":"chess","category":"GAME","title":"Chess"}]}
+
+User: "create a connect four game"
+Building Connect Four for you now!
+${ACTIONS_DELIMITER}
+{"intent":"createApp","actions":[{"type":"CREATE_APP","slug":"connect-four","category":"GAME","title":"Connect Four"}]}
 
 User: "make the tic tac toe board bigger and the bot harder"
 Done — bigger board and a tougher bot. Here's the new version!

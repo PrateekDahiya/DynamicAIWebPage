@@ -43,6 +43,7 @@ export function ArtifactPlayer({
   label,
   config,
   versions,
+  isBuiltIn,
 }: {
   slug: string;
   category: string;
@@ -53,9 +54,11 @@ export function ArtifactPlayer({
   label: string;
   config: ArtifactConfig;
   versions: VersionSummary[];
+  isBuiltIn: boolean;
 }) {
   const [mode, setMode] = useState<string | null>(modes.length === 1 ? modes[0] : null);
   const themeStyle = useMemo(() => themeToCssVars(config.theme), [config.theme]);
+  const moduleUrl = isBuiltIn ? `/games/${slug}.js` : `/api/artifacts/${slug}/versions/${version}/code`;
 
   if (mode) {
     return (
@@ -69,7 +72,7 @@ export function ArtifactPlayer({
             {MODE_META[mode]?.label ?? mode}
           </span>
         </div>
-        <GameHost slug={slug} mode={mode} config={config} />
+        <GameHost moduleUrl={moduleUrl} mode={mode} config={config} />
       </div>
     );
   }

@@ -29,6 +29,7 @@ export default async function ArtifactVersionPage({
       label={entry.label}
       config={JSON.parse(entry.config)}
       versions={artifact.versions.map((v) => ({ version: v.version, label: v.label }))}
+      isBuiltIn={artifact.isBuiltIn}
     />
   );
 }

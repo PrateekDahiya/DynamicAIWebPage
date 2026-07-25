@@ -53,4 +53,27 @@ export async function* streamChat(
   }
 }
 
+// Plain-text completion with no chat/JSON framing — used for generating artifact source code,
+// where we want the raw model output, not a chat message.
+export async function generateText(prompt: string, numPredict = 2000): Promise<string> {
+  const response = await fetch(`${OLLAMA_URL}/api/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: MODEL,
+      prompt,
+      stream: false,
+      options: { temperature: 0.4, num_predict: numPredict },
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`Ollama request failed (${response.status}): ${text}`);
+  }
+
+  const data = await response.json();
+  return data.response ?? "";
+}
+
 export { MODEL };

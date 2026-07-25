@@ -251,3 +251,71 @@ export async function getArtifactWithVersions(userId: string, slug: string) {
     include: { versions: { orderBy: { createdAt: "asc" } } },
   });
 }
+
+// Registers a freshly AI-generated artifact and its v0 (seeded from the chat's current theme,
+// same as built-ins) — called once code generation has already succeeded (see generator.ts /
+// generation-jobs.ts). titleHint is used as the display title.
+export async function registerGeneratedArtifact(
+  userId: string,
+  chatId: string,
+  slug: string,
+  category: ArtifactCategory,
+  title: string,
+  description: string,
+  codeFilePath: string,
+  codeHash: string,
+  currentTheme: Record<string, string> | undefined
+) {
+  const existing = await prisma.artifact.findUnique({ where: { userId_slug: { userId, slug } } });
+  if (existing) return existing;
+
+  const artifact = await prisma.artifact.create({
+    data: {
+      userId,
+      originChatId: chatId,
+      slug,
+      category,
+      title,
+      description,
+      modes: JSON.stringify(GENERATED_ARTIFACT_TEMPLATE.modes),
+      configSchema: JSON.stringify(GENERATED_ARTIFACT_TEMPLATE.configSchema),
+      themeMap: JSON.stringify(GENERATED_ARTIFACT_TEMPLATE.themeMap),
+      sourceType: "GENERATED_CODE",
+      isBuiltIn: false,
+    },
+  });
+
+  const theme = seedThemeFromChat(
+    GENERATED_ARTIFACT_TEMPLATE.defaultConfig.theme,
+    GENERATED_ARTIFACT_TEMPLATE.themeMap,
+    currentTheme
+  );
+
+  await prisma.artifactVersion.create({
+    data: {
+      artifactId: artifact.id,
+      version: "v0",
+      config: JSON.stringify({ ...GENERATED_ARTIFACT_TEMPLATE.defaultConfig, theme }),
+      codeFilePath,
+      codeHash,
+      label: "original",
+    },
+  });
+
+  return artifact;
+}
+
+export async function getLatestVersionUrl(artifactId: string, slug: string) {
+  const latest = await getLatestVersion(artifactId);
+  return `/apps/${slug}/${latest.version}`;
+}
+
+export async function getArtifactVersionCodePath(userId: string, slug: string, version: string) {
+  const artifact = await prisma.artifact.findUnique({ where: { userId_slug: { userId, slug } } });
+  if (!artifact) return null;
+
+  const entry = await prisma.artifactVersion.findUnique({
+    where: { artifactId_version: { artifactId: artifact.id, version } },
+  });
+  return entry?.codeFilePath ?? null;
+}

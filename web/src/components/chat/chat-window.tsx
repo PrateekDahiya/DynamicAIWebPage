@@ -4,9 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MessageBubble, type ChatRole } from "./message-bubble";
 import { Composer } from "./composer";
+import type { AppCard } from "./app-action-card";
 import { useThemeStore, type ThemeBackground, type ThemeAnimation } from "@/stores/theme-store";
 
-type ChatMessage = { id: string; role: ChatRole; content: string };
+type ChatMessage = { id: string; role: ChatRole; content: string; appCards?: AppCard[] };
 type ThemeState = {
   vars: Record<string, string> | null;
   background: ThemeBackground | null;
@@ -14,7 +15,10 @@ type ThemeState = {
 };
 type ResolvedAction =
   | { type: "RESET_THEME" }
-  | { type: "SET_THEME" | "UPDATE_THEME"; vars?: Record<string, string>; background?: ThemeBackground; animation?: ThemeAnimation };
+  | { type: "SET_THEME" | "UPDATE_THEME"; vars?: Record<string, string>; background?: ThemeBackground; animation?: ThemeAnimation }
+  | { type: "CREATE_APP" | "OPEN_APP" | "UPDATE_APP"; title: string; url: string; version: string; label?: string }
+  | { type: "APP_GENERATION_PENDING"; jobId: string; slug: string; title: string }
+  | { type: "APP_ACTION_FAILED"; slug: string; message: string };
 
 function parseSSEChunk(raw: string): { event: string; data: unknown }[] {
   return raw
@@ -29,17 +33,41 @@ function parseSSEChunk(raw: string): { event: string; data: unknown }[] {
     });
 }
 
+// Converts persisted/streamed resolved actions into renderable app-launch cards; theme actions
+// are handled separately (they drive the theme store, not the message UI).
+function toAppCards(actions: ResolvedAction[], keyPrefix: string): AppCard[] {
+  const cards: AppCard[] = [];
+  actions.forEach((action, i) => {
+    const id = `${keyPrefix}-${i}`;
+    if (action.type === "CREATE_APP" || action.type === "OPEN_APP" || action.type === "UPDATE_APP") {
+      cards.push({ kind: "link", id, title: action.title, url: action.url, version: action.version, label: action.label });
+    } else if (action.type === "APP_GENERATION_PENDING") {
+      cards.push({ kind: "pending", id, jobId: action.jobId, title: action.title });
+    } else if (action.type === "APP_ACTION_FAILED") {
+      cards.push({ kind: "error", id, title: action.slug, message: action.message });
+    }
+  });
+  return cards;
+}
+
 export function ChatWindow({
   chatId,
   initialMessages,
   initialTheme,
 }: {
   chatId: string;
-  initialMessages: ChatMessage[];
+  initialMessages: { id: string; role: ChatRole; content: string; actions: ResolvedAction[] }[];
   initialTheme: ThemeState | null;
 }) {
   const router = useRouter();
-  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
+  const [messages, setMessages] = useState<ChatMessage[]>(() =>
+    initialMessages.map((m) => ({
+      id: m.id,
+      role: m.role,
+      content: m.content,
+      appCards: toAppCards(m.actions, m.id),
+    }))
+  );
   const [isStreaming, setIsStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -59,13 +87,21 @@ export function ChatWindow({
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  function applyResolvedActions(actions: ResolvedAction[]) {
-    for (const action of actions) {
-      if (action.type === "RESET_THEME") {
-        resetTheme();
-      } else {
-        setTheme({ vars: action.vars, background: action.background, animation: action.animation });
-      }
+  function applyResolvedActions(assistantId: string, actions: ResolvedAction[]) {
+    const themeActions = actions.filter(
+      (a): a is Extract<ResolvedAction, { type: "SET_THEME" | "UPDATE_THEME" | "RESET_THEME" }> =>
+        a.type === "SET_THEME" || a.type === "UPDATE_THEME" || a.type === "RESET_THEME"
+    );
+    for (const action of themeActions) {
+      if (action.type === "RESET_THEME") resetTheme();
+      else setTheme({ vars: action.vars, background: action.background, animation: action.animation });
+    }
+
+    const appCards = toAppCards(actions, assistantId);
+    if (appCards.length) {
+      setMessages((prev) =>
+        prev.map((m) => (m.id === assistantId ? { ...m, appCards: [...(m.appCards ?? []), ...appCards] } : m))
+      );
     }
   }
 
@@ -120,7 +156,7 @@ export function ChatWindow({
             );
           } else if (part.event === "actions") {
             const actions = (part.data as { actions: ResolvedAction[] }).actions;
-            applyResolvedActions(actions);
+            applyResolvedActions(assistantId, actions);
           }
         }
       }
@@ -173,6 +209,7 @@ export function ChatWindow({
               key={m.id}
               role={m.role}
               content={m.content}
+              appCards={m.appCards}
               isLast={i === messages.length - 1}
               isStreaming={isStreaming}
               onRegenerate={m.role === "assistant" ? handleRegenerate : undefined}

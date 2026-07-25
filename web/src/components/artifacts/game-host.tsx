@@ -6,15 +6,15 @@ type MountFn = (container: HTMLElement, ctx: { mode: string; config: unknown }) 
 
 // Bridges the ported vanilla game engines (public/games/*.js — a plain
 // `export function mount(container, { mode, config })` contract) into a React page. A dynamic,
-// fully-runtime import() of an absolute /games/ URL is never bundled/traced by webpack/Turbopack
-// (it isn't part of the src module graph), so this works identically for both built-in games
-// shipped in public/ and, later, AI-generated ones served from their own route.
+// fully-runtime import() of an absolute URL is never bundled/traced by webpack/Turbopack (it
+// isn't part of the src module graph), so this works identically for built-in games shipped in
+// public/ and AI-generated ones served from their own authenticated route.
 export function GameHost({
-  slug,
+  moduleUrl,
   mode,
   config,
 }: {
-  slug: string;
+  moduleUrl: string;
   mode: string;
   config: unknown;
 }) {
@@ -28,9 +28,7 @@ export function GameHost({
 
     async function load() {
       try {
-        const mod = (await import(/* webpackIgnore: true */ `/games/${slug}.js`)) as {
-          mount: MountFn;
-        };
+        const mod = (await import(/* webpackIgnore: true */ moduleUrl)) as { mount: MountFn };
         if (cancelled || !container) return;
         container.innerHTML = "";
         mod.mount(container, { mode, config });
@@ -44,7 +42,7 @@ export function GameHost({
     return () => {
       cancelled = true;
     };
-  }, [slug, mode, config]);
+  }, [moduleUrl, mode, config]);
 
   if (error) {
     return <p className="ttt-status text-destructive">{error}</p>;

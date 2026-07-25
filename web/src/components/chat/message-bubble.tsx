@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Copy, Check, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Markdown } from "./markdown";
+import { AppActionCard, type AppCard } from "./app-action-card";
 import { cn } from "@/lib/utils";
 
 export type ChatRole = "user" | "assistant" | "system";
@@ -14,12 +15,14 @@ export function MessageBubble({
   onRegenerate,
   isLast,
   isStreaming,
+  appCards,
 }: {
   role: ChatRole;
   content: string;
   onRegenerate?: () => void;
   isLast?: boolean;
   isStreaming?: boolean;
+  appCards?: AppCard[];
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -45,6 +48,15 @@ export function MessageBubble({
           <Markdown content={content || "…"} />
         )}
       </div>
+
+      {!isUser && appCards && appCards.length > 0 && (
+        <div className="flex w-full max-w-[85%] flex-col gap-2">
+          {appCards.map((card) => (
+            <AppActionCard key={card.id} card={card} />
+          ))}
+        </div>
+      )}
+
       {!isUser && content && (
         <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
           <Button variant="ghost" size="icon-sm" onClick={handleCopy} title="Copy">

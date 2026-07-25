@@ -29,6 +29,7 @@ export default async function ChatPage({
         id: m.id,
         role: m.role as "user" | "assistant" | "system",
         content: m.content,
+        actions: m.actionsJson ? JSON.parse(m.actionsJson) : [],
       }))}
       initialTheme={
         latestTheme

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import type { Action } from "@/lib/action-schema";
 import { resolveThemeAction } from "@/lib/theme-resolver";
 import { resolveArtifactStart, resolveArtifactUpdate, ArtifactGenerationUnavailableError } from "@/lib/artifacts/store";
+import { enqueueGenerationJob } from "@/lib/artifacts/generation-jobs";
 
 // Resolves the model's abstract action intents (theme changes, app open/create/update) into
 // concrete results, in order — theme actions resolved earlier in the same turn feed into
@@ -35,11 +36,23 @@ export async function resolveActions(userId: string, chatId: string, actions: Ac
         );
         resolved.push({ type: action.type, ...result });
       } catch (err) {
-        resolved.push({
-          type: "APP_ACTION_FAILED",
-          slug: action.slug,
-          message: err instanceof ArtifactGenerationUnavailableError ? err.message : "Failed to open app.",
-        });
+        if (err instanceof ArtifactGenerationUnavailableError) {
+          // Not a built-in — kick off live generation in the background and return a
+          // "pending" marker immediately rather than blocking this whole chat turn for the
+          // minutes generation can take. The client polls the job and swaps in the real
+          // launch link once it resolves.
+          const jobId = enqueueGenerationJob(
+            userId,
+            chatId,
+            action.slug,
+            action.category,
+            action.title ?? action.slug,
+            currentTheme
+          );
+          resolved.push({ type: "APP_GENERATION_PENDING", jobId, slug: action.slug, title: action.title ?? action.slug });
+        } else {
+          resolved.push({ type: "APP_ACTION_FAILED", slug: action.slug, message: "Failed to open app." });
+        }
       }
       continue;
     }
