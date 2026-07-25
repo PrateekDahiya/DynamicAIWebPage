@@ -26,7 +26,7 @@ export default async function ChatPage({
   ]);
 
   return (
-    <div className="flex flex-1">
+    <div className="flex min-h-0 flex-1">
       <ChatWindow
         chatId={chatId}
         initialMessages={messages.map((m) => ({

@@ -10,6 +10,14 @@ export const runtime = "nodejs";
 
 const MAX_HISTORY_MESSAGES = 20;
 
+// The model doesn't always write the literal ACTIONS_DELIMITER line before its JSON action
+// block (a real, observed failure mode) — but the JSON always starts with `{"intent":`, so we
+// treat that as an *implicit* second delimiter. Whichever pattern appears first in the growing
+// buffer is where reply text ends; this is what actually stops the JSON from streaming live to
+// the client, not just cleaning it up after the fact.
+const JSON_TAIL_RE = /\{\s*"intent"\s*:/;
+const SAFETY_WINDOW = Math.max(ACTIONS_DELIMITER.length, 12) - 1;
+
 function sseEvent(event: string, data: unknown) {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 }
@@ -19,9 +27,55 @@ function autoTitle(message: string) {
   return trimmed.length > 60 ? trimmed.slice(0, 57) + "…" : trimmed;
 }
 
-function parseTrailingActions(raw: string): { intent: string; actions: unknown[] } {
+// Finds where the reply text ends: either the literal delimiter or the JSON tail's own
+// `{"intent":` prefix, whichever comes first. Returns the reply/tail split point, and where the
+// actual JSON text begins (skipping past the delimiter marker text, if that's what matched).
+function findTailStart(buffer: string): { replyEnd: number; jsonStart: number } | null {
+  const delimiterIdx = buffer.indexOf(ACTIONS_DELIMITER);
+  const jsonMatch = buffer.match(JSON_TAIL_RE);
+  const jsonIdx = jsonMatch?.index ?? -1;
+
+  if (delimiterIdx === -1 && jsonIdx === -1) return null;
+  if (delimiterIdx !== -1 && (jsonIdx === -1 || delimiterIdx <= jsonIdx)) {
+    return { replyEnd: delimiterIdx, jsonStart: delimiterIdx + ACTIONS_DELIMITER.length };
+  }
+  return { replyEnd: jsonIdx, jsonStart: jsonIdx };
+}
+
+// Finds the exact end of the JSON object starting at `start` (brace-matching, respecting string
+// literals/escapes) instead of assuming it runs to the end of the buffer — a model that rambles
+// past its own JSON into more text no longer breaks extraction, since JSON.parse only ever sees
+// a complete, standalone object.
+function extractJsonObjectAt(text: string, start: number): string | null {
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (escape) escape = false;
+      else if (ch === "\\") escape = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return null; // unterminated — the model got cut off mid-JSON, not recoverable
+}
+
+function parseActionsJson(jsonText: string | null): { intent: string; actions: unknown[] } {
+  if (!jsonText) return { intent: "conversation", actions: [] };
   try {
-    const parsed = JSON.parse(raw.trim());
+    const parsed = JSON.parse(jsonText);
     return {
       intent: typeof parsed.intent === "string" ? parsed.intent : "conversation",
       actions: Array.isArray(parsed.actions) ? parsed.actions : [],
@@ -29,30 +83,6 @@ function parseTrailingActions(raw: string): { intent: string; actions: unknown[]
   } catch {
     return { intent: "conversation", actions: [] };
   }
-}
-
-// Defensive fallback for when the model emits the {intent, actions} JSON but forgets the
-// literal ACTIONS_DELIMITER line — searches backward from the last `"actions"` occurrence for
-// an opening brace whose contents actually parse as valid JSON, so a dropped delimiter doesn't
-// silently produce zero actions (or worse, permanently store the raw JSON as visible reply text).
-function extractFallbackActions(fullBuffer: string): { replyText: string; actions: unknown[] } | null {
-  const marker = fullBuffer.lastIndexOf('"actions"');
-  if (marker === -1) return null;
-
-  let start = fullBuffer.lastIndexOf("{", marker);
-  while (start !== -1) {
-    const candidate = fullBuffer.slice(start).trim();
-    try {
-      const parsed = JSON.parse(candidate);
-      if (parsed && Array.isArray(parsed.actions)) {
-        return { replyText: fullBuffer.slice(0, start).trim(), actions: parsed.actions };
-      }
-    } catch {
-      // keep searching earlier candidate braces
-    }
-    start = start > 0 ? fullBuffer.lastIndexOf("{", start - 1) : -1;
-  }
-  return null;
 }
 
 export async function POST(req: Request) {
@@ -122,7 +152,9 @@ export async function POST(req: Request) {
 
   const encoder = new TextEncoder();
   let buffer = "";
-  let delimiterIndex = -1;
+  let tailFound = false;
+  let replyEnd = -1;
+  let jsonStart = -1;
   let sentUpTo = 0;
 
   const stream = new ReadableStream({
@@ -131,12 +163,13 @@ export async function POST(req: Request) {
         for await (const chunk of streamChat(ollamaMessages, req.signal)) {
           buffer += chunk;
 
-          if (delimiterIndex === -1) {
-            delimiterIndex = buffer.indexOf(ACTIONS_DELIMITER);
+          if (!tailFound) {
+            const found = findTailStart(buffer);
 
-            if (delimiterIndex === -1) {
-              // Hold back a small trailing window in case the delimiter is split across chunks.
-              const safeEnd = Math.max(sentUpTo, buffer.length - ACTIONS_DELIMITER.length + 1);
+            if (!found) {
+              // Hold back a small trailing window in case the delimiter/JSON prefix is split
+              // across chunks.
+              const safeEnd = Math.max(sentUpTo, buffer.length - SAFETY_WINDOW);
               if (safeEnd > sentUpTo) {
                 controller.enqueue(
                   encoder.encode(sseEvent("token", { text: buffer.slice(sentUpTo, safeEnd) }))
@@ -144,9 +177,12 @@ export async function POST(req: Request) {
                 sentUpTo = safeEnd;
               }
             } else {
-              const toSend = buffer.slice(sentUpTo, delimiterIndex);
+              tailFound = true;
+              replyEnd = found.replyEnd;
+              jsonStart = found.jsonStart;
+              const toSend = buffer.slice(sentUpTo, replyEnd);
               if (toSend) controller.enqueue(encoder.encode(sseEvent("token", { text: toSend })));
-              sentUpTo = delimiterIndex + ACTIONS_DELIMITER.length;
+              sentUpTo = replyEnd;
             }
           }
         }
@@ -162,21 +198,13 @@ export async function POST(req: Request) {
         }
       }
 
-      if (delimiterIndex === -1 && sentUpTo < buffer.length) {
+      if (!tailFound && sentUpTo < buffer.length) {
         controller.enqueue(encoder.encode(sseEvent("token", { text: buffer.slice(sentUpTo) })));
       }
 
-      let replyText = (delimiterIndex === -1 ? buffer : buffer.slice(0, delimiterIndex)).trim();
-      let rawActions: unknown[];
-
-      if (delimiterIndex === -1) {
-        const fallback = extractFallbackActions(buffer);
-        replyText = fallback ? fallback.replyText : replyText;
-        rawActions = fallback ? fallback.actions : [];
-      } else {
-        rawActions = parseTrailingActions(buffer.slice(delimiterIndex + ACTIONS_DELIMITER.length)).actions;
-      }
-
+      const replyText = (tailFound ? buffer.slice(0, replyEnd) : buffer).trim();
+      const jsonText = tailFound ? extractJsonObjectAt(buffer, jsonStart) : null;
+      const { actions: rawActions } = parseActionsJson(jsonText);
       const sanitized = sanitizeActions(rawActions);
 
       let resolvedActions: unknown[] = [];

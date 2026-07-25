@@ -102,6 +102,11 @@ page, so your reply should just be a short intro line.
 IMPORTANT: only use UPDATE_APP when the user is clearly asking to change an EXISTING app (referring
 back to one already discussed/opened in this conversation) rather than asking to open one fresh.
 
+IMPORTANT: if the user's current message names a specific app/game (e.g. "fix the snake game", "make
+chess harder"), use THAT app's slug — even if a different app was discussed more recently in this
+conversation. Never default to "whatever we were just talking about" when the message itself names
+something else; the name in the CURRENT message always wins.
+
 IMPORTANT: if the message names a specific app together with a visual word like "theme", "color",
 "colors", "look", or "style" — e.g. "give tic tac toe a neon theme" — that is a per-app "theme"
 field inside UPDATE_APP's "changes", NOT a page-wide SET_THEME/UPDATE_THEME call. SET_THEME only

@@ -13,6 +13,8 @@ export type ArtifactDef = {
   // maps a chat theme field (--background/--foreground/--accent) to this artifact's own theme
   // key, used only to seed a brand new artifact's v0 so it starts looking like the chat's theme
   themeMap?: Record<string, string>;
+  // short "how do I play this" hint per mode, shown in the in-game topbar
+  controls?: Partial<Record<"bot" | "multiplayer", string>>;
 };
 
 // Ported from the original vanilla app's server/games/registry.js — same shape, generalized
@@ -37,6 +39,7 @@ export const BUILTIN_ARTIFACTS: Record<string, ArtifactDef> = {
       theme: { type: "colorMap", keys: ["bg", "fg", "accent", "x", "o"] },
     },
     themeMap: { "--background": "bg", "--foreground": "fg", "--accent": "accent" },
+    controls: { bot: "Click a cell to place your mark.", multiplayer: "Click a cell to place your mark — take turns." },
   },
   snake: {
     title: "Snake",
@@ -56,6 +59,7 @@ export const BUILTIN_ARTIFACTS: Record<string, ArtifactDef> = {
       theme: { type: "colorMap", keys: ["bg", "fg", "snake", "bot", "food"] },
     },
     themeMap: { "--background": "bg", "--foreground": "fg", "--accent": "snake" },
+    controls: { bot: "Arrow keys to move.", multiplayer: "P1: Arrow keys · P2: WASD." },
   },
   chess: {
     title: "Chess",
@@ -71,6 +75,10 @@ export const BUILTIN_ARTIFACTS: Record<string, ArtifactDef> = {
       theme: { type: "colorMap", keys: ["light", "dark", "whitePiece", "blackPiece", "highlight"] },
     },
     themeMap: { "--accent": "highlight" },
+    controls: {
+      bot: "Click a piece, then click a highlighted square to move.",
+      multiplayer: "Click a piece, then click a highlighted square to move — take turns.",
+    },
   },
 };
 
@@ -88,6 +96,13 @@ export const GENERATED_ARTIFACT_TEMPLATE = {
   },
   themeMap: { "--background": "bg", "--foreground": "fg", "--accent": "accent" },
 };
+
+const GENERIC_CONTROLS_HINT = "Use mouse clicks or keyboard controls as shown in the game.";
+
+export function getControlsHint(slug: string, mode: string): string {
+  const def = getBuiltinDef(slug);
+  return def?.controls?.[mode as "bot" | "multiplayer"] ?? GENERIC_CONTROLS_HINT;
+}
 
 export function getBuiltinIds(): string[] {
   return Object.keys(BUILTIN_ARTIFACTS);

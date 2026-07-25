@@ -17,7 +17,11 @@ export async function* streamChat(
       model: MODEL,
       messages,
       stream: true,
-      options: { temperature: 0.5 },
+      // Capping output length makes the model less likely to ramble past its own
+      // <<<ACTIONS>>> JSON block into a second hallucinated turn, which previously made
+      // the trailing-JSON fallback parser fail (it assumed the JSON ran to the end of
+      // the buffer).
+      options: { temperature: 0.5, num_predict: 800 },
     }),
     signal,
   });

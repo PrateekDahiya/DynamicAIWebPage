@@ -14,7 +14,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
     : [];
 
   return (
-    <div className="flex flex-1">
+    <div className="flex min-h-0 flex-1">
       <ChatSidebar initialChats={chats} />
       {children}
     </div>

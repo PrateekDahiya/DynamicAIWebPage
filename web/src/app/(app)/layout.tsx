@@ -9,9 +9,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <AppTopbar userEmail={session.user.email ?? ""} userName={session.user.name ?? null} />
-      <div className="flex flex-1">{children}</div>
+      <div className="flex min-h-0 flex-1">{children}</div>
     </div>
   );
 }

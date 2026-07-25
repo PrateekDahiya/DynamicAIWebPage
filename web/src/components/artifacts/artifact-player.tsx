@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Bot, Users, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { GameHost } from "./game-host";
+import { getControlsHint } from "@/lib/artifacts/registry";
 
 type VersionSummary = { version: string; label: string };
 
@@ -56,14 +57,31 @@ export function ArtifactPlayer({
   versions: VersionSummary[];
   isBuiltIn: boolean;
 }) {
+  const router = useRouter();
   const [mode, setMode] = useState<string | null>(modes.length === 1 ? modes[0] : null);
+  const [startingEdit, setStartingEdit] = useState(false);
   const themeStyle = useMemo(() => themeToCssVars(config.theme), [config.theme]);
   const moduleUrl = isBuiltIn ? `/games/${slug}.js` : `/api/artifacts/${slug}/versions/${version}/code`;
+
+  async function handleContinueEditing() {
+    setStartingEdit(true);
+    try {
+      const res = await fetch("/api/chats/edit-artifact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug, version }),
+      });
+      const data = await res.json();
+      if (data.chatId) router.push(`/chat/${data.chatId}`);
+    } finally {
+      setStartingEdit(false);
+    }
+  }
 
   if (mode) {
     return (
       <div className="mx-auto w-full max-w-4xl flex-1 p-6" style={themeStyle}>
-        <div className="mb-5 flex items-center justify-between border-b pb-4">
+        <div className="mb-1 flex items-center justify-between border-b pb-4">
           <Button variant="ghost" size="sm" onClick={() => setMode(null)} className="gap-1.5">
             <ArrowLeft className="size-4" />
             Menu
@@ -72,6 +90,7 @@ export function ArtifactPlayer({
             {MODE_META[mode]?.label ?? mode}
           </span>
         </div>
+        <p className="mb-4 pt-2 text-xs text-muted-foreground">{getControlsHint(slug, mode)}</p>
         <GameHost moduleUrl={moduleUrl} mode={mode} config={config} />
       </div>
     );
@@ -123,8 +142,8 @@ export function ArtifactPlayer({
         })}
       </div>
 
-      <Button variant="link" size="sm" className="mt-6" render={<Link href="/chat" />}>
-        Continue editing in chat
+      <Button variant="link" size="sm" className="mt-6" onClick={handleContinueEditing} disabled={startingEdit}>
+        {startingEdit ? "Opening chat…" : "Continue editing in chat"}
       </Button>
 
       {versions.length > 1 && (
