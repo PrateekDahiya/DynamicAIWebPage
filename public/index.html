@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dynamic AI Chat</title>
+<link rel="stylesheet" href="css/base.css" />
+</head>
+<body>
+<canvas id="bg-canvas"></canvas>
+
+<div id="app">
+  <div id="widgets"></div>
+
+  <div id="chat">
+    <div id="chat-header">
+      <span>Dynamic AI Chat</span>
+      <button id="chat-reset" type="button" title="Clear conversation and reset the page">Reset</button>
+    </div>
+    <div id="chat-log"></div>
+    <form id="chat-form">
+      <input id="chat-input" type="text" autocomplete="off" placeholder="Say anything... e.g. 'make the background red' or 'let's play tic tac toe'" />
+      <button id="chat-send" type="submit">Send</button>
+    </form>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
